@@ -67,9 +67,11 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
 - **Keys:** the keyboard plugged in plays the FM-1 through the app. It's picked by itself; tap
   **Keys** to choose another device (a sequencer, a MIDI interface, or another app's MIDI device such
   as Synth Spyglass's "Mac (Wi-Fi)", for a computer's keyboard over Wi-Fi) or **None**.
-  - Everything is moved to **channel 1**, where the FM-1 listens: a keyboard knocked onto another channel
-    (a Keystation came set to 13) would be silent otherwise. **Keys › Channels** sends them as they come
-    instead, for a sequencer playing the FM-1's tracks on their own channels.
+  - Everything is moved to **channel 1** by default, where the FM-1 listens: a keyboard knocked onto another
+    channel (a Keystation came set to 13) would be silent otherwise. **Keys › Channel** picks another (1 to 16:
+    e.g. 3 for [ChoralRoot's MIDI Keys](https://github.com/pfkellogg/ChoralRootFM1/blob/big-screen/BIG_SCREEN.md#playing-it-from-a-usb-keyboard),
+    its chord engine from the keyboard), or **as they come**, for a sequencer playing the FM-1's tracks on their
+    own channels.
   - Clock goes through too. SysEx never does: that's how the FM-1 is updated.
 - **Spyglass:** a round brass eyepiece beside the screen with the note or chord you play
   ("A3 220 Hz", "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
@@ -120,6 +122,12 @@ Java 17 and the Android SDK:
 
 `test/run.sh` checks the screen and updater messages on a computer, no tablet needed. Debug builds
 include a pretend FM-1 ("FM1 Simulator") for trying the app without one.
+
+## Other firmwares: ChoralRoot
+
+The screen messages work with any FM-1 firmware that sends them (the screen part is MIT). The first community firmware
+with it: **ChoralRoot + FM-1 Big Screen** ([pfkellogg/ChoralRootFM1](https://github.com/pfkellogg/ChoralRootFM1/blob/big-screen/BIG_SCREEN.md)),
+Quixotic7's chord instrument with 26 lines added. Over USB; "Update FM-1" doesn't show on it (it would replace it).
 
 ## For the curious
 
