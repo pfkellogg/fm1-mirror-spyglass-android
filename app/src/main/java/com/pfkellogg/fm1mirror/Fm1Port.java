@@ -66,18 +66,8 @@ final class Fm1Port implements Closeable {
 
     /** Null if it can't be opened (gone, or another app has its ports). Waits for Android, so never call it on the main thread. */
     static Fm1Port open(MidiManager mm, MidiDeviceInfo info, Codec.Sysex.Sink sink) {
-        MidiDevice[] got = new MidiDevice[1];
-        CountDownLatch opened = new CountDownLatch(1);
-        mm.openDevice(info, d -> {
-            got[0] = d;
-            opened.countDown();
-        }, callbacks());
-        try {
-            if (!opened.await(4, TimeUnit.SECONDS) || got[0] == null) return null;
-        } catch (InterruptedException e) {
-            return null;
-        }
-        MidiDevice d = got[0];
+        MidiDevice d = openDevice(mm, info);
+        if (d == null) return null;
         MidiInputPort in = d.openInputPort(0);
         MidiOutputPort out = d.openOutputPort(0);
         if (in == null || out == null) {
@@ -94,6 +84,31 @@ final class Fm1Port implements Closeable {
             }
         });
         return new Fm1Port(info, d, in, out);
+    }
+
+    /**
+     * Opens a device, waiting up to 4 s for Android; null if it didn't come. One that comes later
+     * (another app's service Android was slow to start, say) is closed, not left open.
+     */
+    static MidiDevice openDevice(MidiManager mm, MidiDeviceInfo info) {
+        MidiDevice[] got = new MidiDevice[1];
+        boolean[] gaveUp = new boolean[1];
+        CountDownLatch opened = new CountDownLatch(1);
+        mm.openDevice(info, d -> {
+            synchronized (got) {
+                if (gaveUp[0]) closeQuietly(d);
+                else got[0] = d;
+            }
+            opened.countDown();
+        }, callbacks());
+        try {
+            opened.await(4, TimeUnit.SECONDS);
+        } catch (InterruptedException ignored) {
+        }
+        synchronized (got) {
+            gaveUp[0] = got[0] == null;
+            return got[0];
+        }
     }
 
     synchronized void send(byte[] m) throws IOException {

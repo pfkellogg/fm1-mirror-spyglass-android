@@ -11,8 +11,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A keyboard (or any MIDI device: a sequencer, a USB MIDI interface's MIDI IN) playing the FM-1
@@ -52,21 +50,12 @@ final class Keys implements Closeable {
 
     /** Null if it can't be opened. Waits for Android, so never call it on the main thread. */
     static Keys open(MidiManager mm, MidiDeviceInfo info, Fm1Port fm1, boolean toOne, Played played) {
-        MidiDevice[] got = new MidiDevice[1];
-        CountDownLatch opened = new CountDownLatch(1);
-        mm.openDevice(info, d -> {
-            got[0] = d;
-            opened.countDown();
-        }, Fm1Port.callbacks());
-        try {
-            if (!opened.await(4, TimeUnit.SECONDS) || got[0] == null) return null;
-        } catch (InterruptedException e) {
-            return null;
-        }
-        MidiOutputPort out = got[0].openOutputPort(0);
+        MidiDevice device = Fm1Port.openDevice(mm, info);
+        if (device == null) return null;
+        MidiOutputPort out = device.openOutputPort(0);
         if (out == null) {
             try {
-                got[0].close();
+                device.close();
             } catch (IOException ignored) {
             }
             return null;
@@ -97,7 +86,7 @@ final class Keys implements Closeable {
                 }
             }
         });
-        return new Keys(info, got[0], out);
+        return new Keys(info, device, out);
     }
 
     /** All notes off on every channel, so nothing hangs when the keyboard goes mid-note. */
