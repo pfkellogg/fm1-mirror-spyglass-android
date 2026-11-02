@@ -66,6 +66,11 @@ final class Fm1Port implements Closeable {
 
     /** Null if it can't be opened (gone, or another app has its ports). Waits for Android, so never call it on the main thread. */
     static Fm1Port open(MidiManager mm, MidiDeviceInfo info, Codec.Sysex.Sink sink) {
+        return open(mm, info, sink, null);
+    }
+
+    /** Also passes everything the FM-1 sends to `notes` (its own keys, for the spyglass). */
+    static Fm1Port open(MidiManager mm, MidiDeviceInfo info, Codec.Sysex.Sink sink, Played.Stream notes) {
         MidiDevice d = openDevice(mm, info);
         if (d == null) return null;
         MidiInputPort in = d.openInputPort(0);
@@ -81,6 +86,7 @@ final class Fm1Port implements Closeable {
             @Override
             public void onSend(byte[] data, int offset, int count, long timestamp) {
                 sysex.feed(data, offset, count);
+                if (notes != null) notes.feed(data, offset, count);
             }
         });
         return new Fm1Port(info, d, in, out);

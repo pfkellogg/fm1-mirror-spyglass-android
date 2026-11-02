@@ -78,7 +78,7 @@ final class Keys implements Closeable {
                     }
                 }
                 if (n == 0) return;
-                played.feed(pass, n);
+                played.keys.feed(pass, 0, n);
                 try {
                     fm1.send(n == count ? pass : Arrays.copyOf(pass, n));
                 } catch (IOException ignored) {

@@ -123,6 +123,7 @@ final class Installer implements Runnable {
         while (true) {
             List<Found> found = new ArrayList<>();
             for (MidiDeviceInfo info : Fm1Port.candidates(mm, updater)) {
+                if (Ble.isBluetooth(info)) continue; // firmware goes over USB only
                 Link link = Link.open(mm, info);
                 if (link == null) continue;
                 String id = link.identity();

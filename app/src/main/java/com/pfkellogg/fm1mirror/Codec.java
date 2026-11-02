@@ -62,7 +62,7 @@ final class Codec {
             // The FM-1 draws light text on black: lift anything that isn't background to full strength.
             int lit = (int) (Math.min(1f, luma * 1.6f) * 255f);
             switch (this) {
-                case BRIGHT: return argb(bright(p[0]), bright(p[1]), bright(p[2]));
+                case BRIGHT: return lift(bright(p[0]), bright(p[1]), bright(p[2]));
                 case YELLOW: return argb(lit, lit, 0);
                 case WHITE: return argb(lit, lit, lit);
                 case INVERTED: return argb(255 - lit, 255 - lit, 255 - lit);
@@ -71,6 +71,21 @@ final class Codec {
         }
 
         private static int bright(int v) { return (int) Math.min(255f, v * 1.6f); }
+
+        /**
+         * Brings any colour that isn't the black background up to at least 80% brightness, keeping
+         * its hue: a dark purple on black becomes a light lilac that can be read.
+         */
+        private static int lift(int r, int g, int b) {
+            float l = (0.299f * r + 0.587f * g + 0.114f * b) / 255f, want = 0.8f;
+            if (l > 0.03f && l < want) {
+                float t = (want - l) / (1f - l);
+                r += (int) ((255 - r) * t);
+                g += (int) ((255 - g) * t);
+                b += (int) ((255 - b) * t);
+            }
+            return argb(r, g, b);
+        }
 
         private static int argb(int r, int g, int b) { return 0xff000000 | r << 16 | g << 8 | b; }
     }

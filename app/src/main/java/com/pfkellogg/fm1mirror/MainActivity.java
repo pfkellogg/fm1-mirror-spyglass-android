@@ -11,6 +11,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiManager;
 import android.net.Uri;
@@ -30,6 +31,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,7 +43,8 @@ import java.util.List;
  * FM-1 Mirror for Android: the FM-1's screen, big, sent over USB by the FM-1 Big Screen firmware
  * (the desktop app's src/main.rs). Plug the FM-1 into the phone or tablet, open the app.
  * A keyboard plugged in too plays the FM-1 through it (Keys): Android lets only one app send to the FM-1.
- * What it plays shows in the spyglass (Glass), beside the screen.
+ * What it plays shows in the spyglass (Glass), beside the screen. Over Bluetooth too (Ble), when the
+ * FM-1 isn't plugged in: the newer Big Screen firmware answers on the port that asked.
  */
 public class MainActivity extends Activity {
     static final String WORKBENCH = "https://open.m-vave.com/fm1-workbench";
@@ -66,6 +69,11 @@ public class MainActivity extends Activity {
     private volatile boolean keysLost, keysChanged;
     private final Played played = new Played();
     private Glass glass;
+    private volatile String build; // the Big Screen build the FM-1 runs (its updater's answer)
+    private String bundled = "";   // the build this app installs
+    private volatile MidiDevice ble; // held open while the FM-1 is used over Bluetooth
+    private volatile boolean bleOpening, bleScanning;
+    private volatile long bleTriedAt;
 
     private Codec.Look look = Codec.Look.COLOR;
     private boolean confirming, full;
@@ -75,7 +83,8 @@ public class MainActivity extends Activity {
     private LinearLayout bar, panel;
     private FrameLayout stage;
     private ScrollView panelScroll;
-    private Button lookButton, keysButton;
+    private Button lookButton, keysButton, updateButton;
+    private TextView title;
     private TextView stepText;
     private ProgressBar progressBar;
 
@@ -100,9 +109,18 @@ public class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(12), dp(8), dp(12), dp(8));
-        TextView title = text("FM-1 Mirror + Spyglass", 22, TEXT);
+        title = text("FM-1 Mirror + Spyglass", 22, TEXT);
         title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setSingleLine(true);
+        title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         bar.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        updateButton = button("Update FM-1", v -> confirmUpdate());
+        updateButton.setVisibility(View.GONE);
+        bar.addView(updateButton);
+        try {
+            bundled = Codec.buildId(new String(asset("FM1_BIG_SCREEN_V14.build-identity.json")));
+        } catch (IOException ignored) {
+        }
         keysButton = button("Keys", v -> pickKeys());
         bar.addView(keysButton);
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
@@ -134,6 +152,8 @@ public class MainActivity extends Activity {
                 if (l != null && l.info.getId() == info.getId()) lost = true;
                 Keys k = keys;
                 if (k != null && k.info.getId() == info.getId()) keysLost = true;
+                MidiDevice b = ble;
+                if (b != null && b.getInfo().getId() == info.getId()) dropBle();
             }
         }, Fm1Port.callbacks());
     }
@@ -169,6 +189,27 @@ public class MainActivity extends Activity {
                 l = null;
             }
             long now = System.currentTimeMillis();
+            // Plugged in while on Bluetooth: USB is much faster, so move over.
+            if (l != null && Ble.isBluetooth(l.info) && now - lookedAt >= 2000 && usbFm1()) {
+                lookedAt = now;
+                link = null;
+                l.close();
+                l = null;
+                dropBle();
+            }
+            // Not plugged in: open the FM-1 found over Bluetooth before (every 10 s while it isn't there).
+            if (l == null && !installing() && ble == null && !bleOpening && now - bleTriedAt >= 10000 && !usbFm1()) {
+                bleTriedAt = now;
+                String address = prefs.getString("bleAddress", "");
+                if (!address.isEmpty() && Ble.allowed(this)) {
+                    bleOpening = true;
+                    Ble.open(this, mm, address, d -> {
+                        if (running && d != null) ble = d;
+                        else closeQuietly(d);
+                        bleOpening = false;
+                    });
+                }
+            }
             if (l == null && !installing() && now - lookedAt >= 2000) {
                 lookedAt = now;
                 l = openFm1();
@@ -235,6 +276,26 @@ public class MainActivity extends Activity {
         Fm1Port l = link;
         link = null;
         if (l != null) l.close();
+        dropBle();
+    }
+
+    private void dropBle() {
+        MidiDevice b = ble;
+        ble = null;
+        closeQuietly(b);
+    }
+
+    private static void closeQuietly(MidiDevice d) {
+        try {
+            if (d != null) d.close();
+        } catch (IOException ignored) {
+        }
+    }
+
+    /** An FM-1 on USB right now. */
+    private boolean usbFm1() {
+        for (MidiDeviceInfo i : Fm1Port.candidates(mm, true)) if (!Ble.isBluetooth(i)) return true;
+        return false;
     }
 
     /** While the installer has the FM-1 to itself. */
@@ -251,15 +312,16 @@ public class MainActivity extends Activity {
         List<MidiDeviceInfo> all = Fm1Port.candidates(mm, true);
         all.sort((a, b) -> Integer.compare(rank(a), rank(b)));
         for (MidiDeviceInfo info : all) {
-            Fm1Port p = Fm1Port.open(mm, info, this::onMessage);
+            Fm1Port p = Fm1Port.open(mm, info, this::onMessage, played.fm1);
             if (p != null) return p;
         }
         return null;
     }
 
+    /** USB before Bluetooth; by name within each. */
     private static int rank(MidiDeviceInfo i) {
         String n = Fm1Port.name(i).toLowerCase();
-        return n.contains("fm1") || n.contains("fm-1") ? 0 : n.contains("composite") ? 1 : 2;
+        return (Ble.isBluetooth(i) ? 10 : 0) + (n.contains("fm1") || n.contains("fm-1") ? 0 : n.contains("composite") ? 1 : 2);
     }
 
     // ---- the keyboard: "" any keyboard plugged in, "-" none, or a device's name
@@ -339,6 +401,7 @@ public class MainActivity extends Activity {
                 identity = Codec.identity(r.data);
             }
         }
+        if (r != null && r.command == 49 && Codec.capability(r.data) != null) build = Codec.capability(r.data).build;
     }
 
     // ---- what to show
@@ -348,6 +411,7 @@ public class MainActivity extends Activity {
         public void run() {
             showKeys();
             update();
+            showLink();
             main.postDelayed(this, 300);
         }
     };
@@ -379,6 +443,11 @@ public class MainActivity extends Activity {
             case "plug":
                 heading("Waiting for the FM-1…");
                 body("Plug it into this phone or tablet with its USB cable (through a USB-C or OTG adapter if the phone needs one), and turn it on.");
+                body(bleScanning ? "Looking for the FM-1 over Bluetooth…"
+                        : prefs.getString("bleAddress", "").isEmpty()
+                        ? "Or over Bluetooth: turn on the FM-1's Bluetooth MIDI (on its BLUETOOTH page), then:"
+                        : "Or over Bluetooth: it connects by itself when the FM-1's Bluetooth MIDI is on (its BLUETOOTH page). A different FM-1?");
+                if (!bleScanning) row(button("Find the FM-1 over Bluetooth", v -> findBle()));
                 break;
             case "connecting":
                 heading("Connecting to the FM-1…");
@@ -387,6 +456,10 @@ public class MainActivity extends Activity {
                 heading("This FM-1 has M-VAVE's original firmware");
                 body("To show its screen here it needs the FM-1 Big Screen firmware: M-VAVE's free Official Open firmware plus one small addition that sends the screen to this app. Two steps, and you can go back to the original whenever you like.");
                 step1();
+                break;
+            case "bluetooth":
+                heading("No screen over Bluetooth yet");
+                body("This FM-1 sends its screen over USB only. The newer Big Screen firmware in this app sends it over Bluetooth too: plug the FM-1 in with its USB cable once, and this app offers to update it (about 2 minutes). Installing over Bluetooth isn't possible.");
                 break;
             case "open":
                 heading("This FM-1 runs M-VAVE's Open firmware");
@@ -475,10 +548,78 @@ public class MainActivity extends Activity {
             id = identity;
         }
         if (id == null) return l.name.toLowerCase().contains("usb composite") ? "original" : "unknown:" + l.name;
+        if (Ble.isBluetooth(l.info) && !Codec.isUpdater(id)) return "bluetooth"; // installs need USB
         if (Codec.isOriginal(id)) return "original";
         if (Codec.isOpenFirmware(id)) return "open";
         if (Codec.isUpdater(id)) return "updater";
         return "other:" + id;
+    }
+
+    // ---- Bluetooth and the firmware update
+
+    /** The title says when it's over Bluetooth; Update shows when the FM-1 runs another Big Screen build. */
+    private void showLink() {
+        Fm1Port l = link;
+        boolean onBle = l != null && Ble.isBluetooth(l.info);
+        String t = onBle ? "FM-1 Mirror + Spyglass · Bluetooth" : "FM-1 Mirror + Spyglass";
+        if (!t.contentEquals(title.getText())) title.setText(t);
+        String b = build;
+        boolean offer = l != null && !onBle && installer == null && b != null && !bundled.isEmpty() && !b.equals(bundled) && screenSince(opened);
+        updateButton.setVisibility(offer ? View.VISIBLE : View.GONE);
+    }
+
+    private void confirmUpdate() {
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Update the FM-1's Big Screen firmware?")
+                .setMessage("This app has a newer Big Screen firmware: it also sends the screen over Bluetooth. About 2 minutes; keep the FM-1 plugged in and on, and this app open. Your sounds and projects stay.")
+                .setPositiveButton("Install now", (d, w) -> startInstall())
+                .setNegativeButton("Not now", null)
+                .create();
+        readable(dialog);
+    }
+
+    /** Shows a dialog with its buttons big and yellow: the theme's blue-purple on dark is hard to read. */
+    private void readable(AlertDialog dialog) {
+        dialog.setOnShowListener(d -> {
+            for (int which : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_NEUTRAL}) {
+                Button b = dialog.getButton(which);
+                if (b == null) continue;
+                b.setTextColor(0xffffd60a);
+                b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+                b.setAllCaps(false);
+            }
+        });
+        dialog.show();
+    }
+
+    private void findBle() {
+        if (!Ble.allowed(this)) {
+            requestPermissions(Ble.permissions(), 7);
+            return;
+        }
+        if (Ble.adapter(this) == null) {
+            Toast.makeText(this, "Turn on Bluetooth on this tablet first.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        bleScanning = true;
+        shown = "";
+        Ble.scan(this, 12000, d -> {
+            bleScanning = false;
+            shown = "";
+            if (d == null) {
+                Toast.makeText(this, "No FM-1 found over Bluetooth. Is its Bluetooth MIDI on, and is it close by?", Toast.LENGTH_LONG).show();
+                return;
+            }
+            prefs.edit().putString("bleAddress", d.getAddress()).apply();
+            dropBle();
+            bleTriedAt = 0; // connect now
+            Toast.makeText(this, "Found the FM-1. Connecting…", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        if (code == 7 && Ble.allowed(this)) findBle();
     }
 
     private void step1() {

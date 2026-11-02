@@ -3,46 +3,59 @@ package com.pfkellogg.fm1mirror;
 import java.util.Arrays;
 
 /**
- * What the keyboard has played, for the spyglass: the last note and how hard, and the keys held
- * now (for chord names). Fed the bytes Keys passes to the FM-1, from a MIDI thread.
+ * What's been played, for the spyglass: the last note and how hard, and the keys held now (for
+ * chord names). Two streams feed it, from MIDI threads: `keys`, what Keys passes to the FM-1, and
+ * `fm1`, what the FM-1 sends (its own keys, with KEY OUT on its MIDI TRACK page).
  */
 final class Played {
     private final boolean[] down = new boolean[128];
-    private int status, d1, have;
     private int lastNote = -1, lastVelocity, firstVelocity = -1;
     private boolean velocityVaries;
     private long noteOns;
 
-    synchronized void feed(byte[] m, int count) {
-        for (int i = 0; i < count; i++) {
-            int b = m[i] & 0xff;
-            if (b >= 0xf8) continue; // clock and the like
-            if (b >= 0x80) {
-                status = b < 0xf0 ? b : 0;
-                have = 0;
-                continue;
+    final Stream keys = new Stream(), fm1 = new Stream();
+
+    /** One stream's running status; SysEx (the FM-1's screen) passes through untouched. */
+    final class Stream {
+        private int status, d1, have;
+
+        void feed(byte[] m, int offset, int count) {
+            synchronized (Played.this) {
+                for (int i = offset; i < offset + count; i++) {
+                    int b = m[i] & 0xff;
+                    if (b >= 0xf8) continue; // clock and the like
+                    if (b >= 0x80) {
+                        status = b < 0xf0 ? b : 0;
+                        have = 0;
+                        continue;
+                    }
+                    if (status == 0) continue;
+                    int type = status & 0xf0;
+                    if (type == 0xc0 || type == 0xd0) continue; // one data byte, nothing to track
+                    if (have == 0) {
+                        d1 = b;
+                        have = 1;
+                        continue;
+                    }
+                    have = 0; // running status: the next pair reuses it
+                    event(type, d1, b);
+                }
             }
-            if (status == 0) continue;
-            int type = status & 0xf0;
-            if (type == 0xc0 || type == 0xd0) continue; // one data byte, nothing to track
-            if (have == 0) {
-                d1 = b;
-                have = 1;
-                continue;
-            }
-            have = 0; // running status: the next pair reuses it
-            if (type == 0x90 && b > 0) {
-                down[d1] = true;
-                lastNote = d1;
-                lastVelocity = b;
-                if (firstVelocity < 0) firstVelocity = b;
-                else if (b != firstVelocity) velocityVaries = true;
-                noteOns++;
-            } else if (type == 0x80 || type == 0x90) {
-                down[d1] = false;
-            } else if (type == 0xb0 && (d1 == 123 || d1 == 120)) {
-                Arrays.fill(down, false);
-            }
+        }
+    }
+
+    private void event(int type, int note, int value) {
+        if (type == 0x90 && value > 0) {
+            down[note] = true;
+            lastNote = note;
+            lastVelocity = value;
+            if (firstVelocity < 0) firstVelocity = value;
+            else if (value != firstVelocity) velocityVaries = true;
+            noteOns++;
+        } else if (type == 0x80 || type == 0x90) {
+            down[note] = false;
+        } else if (type == 0xb0 && (note == 123 || note == 120)) {
+            Arrays.fill(down, false);
         }
     }
 
