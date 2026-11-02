@@ -265,7 +265,7 @@ public class MainActivity extends Activity {
                 MidiDeviceInfo want = wantedKeys(l.info);
                 if (want != null) {
                     keysLost = false;
-                    keys = Keys.open(mm, want, l, prefs.getBoolean("keysToOne", true), played);
+                    keys = Keys.open(mm, want, l, keysChannel(), played);
                 }
             }
             sleep(100);
@@ -342,15 +342,38 @@ public class MainActivity extends Activity {
         items.add("Any keyboard plugged in");
         items.addAll(names);
         items.add("None");
-        boolean toOne = prefs.getBoolean("keysToOne", true);
-        items.add(toOne ? "Channels: all to channel 1 (tap to send them as they come)" : "Channels: as they come (tap to move all to channel 1)");
+        int ch = keysChannel();
+        items.add("Channel: " + (ch == 0 ? "as they come" : String.valueOf(ch)) + " (tap to change)");
         int none = items.size() - 2, channels = items.size() - 1;
         new AlertDialog.Builder(this)
                 .setTitle("Play the FM-1 from")
                 .setItems(items.toArray(new String[0]), (d, which) -> {
-                    if (which == channels) prefs.edit().putBoolean("keysToOne", !toOne).apply();
-                    else prefs.edit().putString("keys", which == 0 ? "" : which == none ? "-" : names.get(which - 1)).apply();
+                    if (which == channels) {
+                        pickChannel();
+                        return;
+                    }
+                    prefs.edit().putString("keys", which == 0 ? "" : which == none ? "-" : names.get(which - 1)).apply();
                     keysChanged = true;
+                })
+                .show();
+    }
+
+    /** The channel Keys sends on: 1 to 16, or 0 for as they come (an older "everything to channel 1" switch carries over). */
+    private int keysChannel() {
+        return prefs.getInt("keysChannel", prefs.getBoolean("keysToOne", true) ? 1 : 0);
+    }
+
+    private void pickChannel() {
+        String[] items = new String[17];
+        items[0] = "As they come (each note on its own channel)";
+        for (int c = 1; c <= 16; c++)
+            items[c] = "Channel " + c + (c == 1 ? " (the FM-1's own: the usual one)" : "");
+        new AlertDialog.Builder(this)
+                .setTitle("Send the keyboard on")
+                .setSingleChoiceItems(items, keysChannel(), (d, which) -> {
+                    prefs.edit().putInt("keysChannel", which).apply();
+                    keysChanged = true;
+                    d.dismiss();
                 })
                 .show();
     }
@@ -564,7 +587,13 @@ public class MainActivity extends Activity {
         String t = onBle ? "FM-1 Mirror · Bluetooth" : "FM-1 Mirror + Spyglass";
         if (!t.contentEquals(title.getText())) title.setText(t);
         String b = build;
-        boolean offer = l != null && !onBle && installer == null && b != null && !bundled.isEmpty() && !b.equals(bundled) && screenSince(opened);
+        String id;
+        synchronized (this) {
+            id = identity;
+        }
+        // Only over M-VAVE's Open firmware: another firmware with the mirror (ChoralRoot + Big Screen) stays.
+        boolean offer = l != null && !onBle && installer == null && b != null && !bundled.isEmpty() && !b.equals(bundled)
+                && id != null && Codec.isOpenFirmware(id) && screenSince(opened);
         updateButton.setVisibility(offer ? View.VISIBLE : View.GONE);
     }
 

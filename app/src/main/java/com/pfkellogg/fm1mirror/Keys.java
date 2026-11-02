@@ -16,9 +16,10 @@ import java.util.List;
  * A keyboard (or any MIDI device: a sequencer, a USB MIDI interface's MIDI IN) playing the FM-1
  * through this app. On Android only one app can send to the FM-1, and this one already does, for
  * the screen, so the notes come through here too. Everything goes on as it came, clock included,
- * except SysEx: that's how the FM-1 is updated, so none of it is passed on. With `toOne` every
- * channel message moves to channel 1, where the FM-1 listens: a keyboard knocked onto another
- * channel (a Keystation on 13, say) would be silent otherwise.
+ * except SysEx: that's how the FM-1 is updated, so none of it is passed on. With `channel` 1 to 16
+ * every channel message moves to that channel: 1 by default, where the FM-1 listens (a keyboard
+ * knocked onto another channel, a Keystation on 13, say, would be silent otherwise); another one for a
+ * firmware that listens there, e.g. ChoralRoot's MIDI Keys channel. 0: as they come.
  */
 final class Keys implements Closeable {
     final MidiDeviceInfo info;
@@ -49,7 +50,7 @@ final class Keys implements Closeable {
     }
 
     /** Null if it can't be opened. Waits for Android, so never call it on the main thread. */
-    static Keys open(MidiManager mm, MidiDeviceInfo info, Fm1Port fm1, boolean toOne, Played played) {
+    static Keys open(MidiManager mm, MidiDeviceInfo info, Fm1Port fm1, int channel, Played played) {
         MidiDevice device = Fm1Port.openDevice(mm, info);
         if (device == null) return null;
         MidiOutputPort out = device.openOutputPort(0);
@@ -74,7 +75,7 @@ final class Keys implements Closeable {
                     else if (b >= 0xf8) pass[n++] = data[i]; // clock and the like, even inside SysEx
                     else if (!sysex || b >= 0x80) {
                         sysex = false; // a status byte ends a SysEx that never closed
-                        pass[n++] = toOne && b >= 0x80 && b < 0xf0 ? (byte) (b & 0xf0) : data[i];
+                        pass[n++] = channel > 0 && b >= 0x80 && b < 0xf0 ? (byte) ((b & 0xf0) | (channel - 1)) : data[i];
                     }
                 }
                 if (n == 0) return;
