@@ -64,7 +64,8 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   the little one. **Full screen** (tap the screen to come back), and **Color** for other looks: Bright
   color, Yellow on black, White on black, Black on white.
 - **Keys:** the keyboard plugged in plays the FM-1 through the app. It's picked by itself; tap
-  **Keys** to choose another device (a sequencer, a MIDI interface) or **None**.
+  **Keys** to choose another device (a sequencer, a MIDI interface, or another app's MIDI device such
+  as Synth Spyglass's "Mac (Wi-Fi)", for a computer's keyboard over Wi-Fi) or **None**.
   - Everything is moved to **channel 1**, where the FM-1 listens: a keyboard knocked onto another channel
     (a Keystation came set to 13) would be silent otherwise. **Keys › Channels** sends them as they come
     instead, for a sequencer playing the FM-1's tracks on their own channels.
