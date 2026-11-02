@@ -10,6 +10,8 @@ It combines two free apps for Android: [FM-1 Mirror](https://github.com/pfkellog
 big screen) and [Synth Spyglass](https://github.com/pfkellogg/synth-spyglass-android) (the notes). On
 Android only one app at a time can play the FM-1, so the two can't run together; this one does both.
 
+**Watch it:** [FM-1 Mirror + Spyglass for Android: Big Screen, MIDI Bridge & Note Spyglass, All in One](https://youtu.be/XDqrabQf5uY) (2:03)
+
 Questions, or something not working? Write to me: **pfkellogg@gmail.com**
 
 ## Download
