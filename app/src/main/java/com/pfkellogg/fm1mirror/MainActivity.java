@@ -561,7 +561,7 @@ public class MainActivity extends Activity {
     private void showLink() {
         Fm1Port l = link;
         boolean onBle = l != null && Ble.isBluetooth(l.info);
-        String t = onBle ? "FM-1 Mirror + Spyglass · Bluetooth" : "FM-1 Mirror + Spyglass";
+        String t = onBle ? "FM-1 Mirror · Bluetooth" : "FM-1 Mirror + Spyglass";
         if (!t.contentEquals(title.getText())) title.setText(t);
         String b = build;
         boolean offer = l != null && !onBle && installer == null && b != null && !bundled.isEmpty() && !b.equals(bundled) && screenSince(opened);

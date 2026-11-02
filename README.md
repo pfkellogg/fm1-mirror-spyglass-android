@@ -1,8 +1,8 @@
 # FM-1 Mirror + Spyglass for Android
 
-The M-VAVE FM-1's tiny 1.54-inch screen, **big on an Android tablet or phone**, live. Play the FM-1
-from a USB keyboard through the same app, and watch every note or chord you play in a **spyglass**
-beside the screen.
+The M-VAVE FM-1's tiny 1.54-inch screen, **big on an Android tablet or phone**, live, over USB or
+**Bluetooth**. Play the FM-1 from a USB keyboard through the same app, and watch every note or chord
+you play, on the keyboard or on the FM-1's own keys, in a **spyglass** beside the screen.
 
 ![FM-1 Mirror + Spyglass on a tablet: the FM-1's screen big, and the spyglass showing A3](docs/screenshot.png)
 
@@ -62,7 +62,8 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
 
 - **The screen** fills the middle, live: turn a knob, press a button, play a note, and it changes with
   the little one. **Full screen** (tap the screen to come back), and **Color** for other looks: Bright
-  color, Yellow on black, White on black, Black on white.
+  color (lifts dark colours like purple so they can be read), Yellow on black, White on black, Black on
+  white.
 - **Keys:** the keyboard plugged in plays the FM-1 through the app. It's picked by itself; tap
   **Keys** to choose another device (a sequencer, a MIDI interface, or another app's MIDI device such
   as Synth Spyglass's "Mac (Wi-Fi)", for a computer's keyboard over Wi-Fi) or **None**.
@@ -74,7 +75,30 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   ("A3 220 Hz", "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
   key. Drag it to move it; pinch it, or tap it and drag the grip on its rim, to resize it; tap it and
   **✕** to put it away.
+  - **The FM-1's own keys** show too, once its **KEY OUT** is on (once, it's remembered): on the FM-1,
+    press **SEQ**, turn **ALGO** to page **6/8 MIDI TRACK**, and turn **K4 (KEY OUT)** to **ON**
+    (**K3, OUT PORT**, on **USB+BLE**).
+- **Update FM-1** shows in the bar when this app has a newer Big Screen firmware than the FM-1 runs
+  (over USB only; about 2 minutes, your sounds and projects stay).
 - Playing works while the app is on screen: switched to another app, it lets go of the FM-1.
+
+## Over Bluetooth
+
+No cable to the FM-1: it can sit across the room on its battery. It needs the Big Screen firmware
+from this app's 1.3 or later (an older one sends its screen over USB only; plug it in once and tap
+**Update FM-1**).
+
+1. On the FM-1, hold **HOME** and press **GLO**: the **BLUETOOTH** page. **K1 BLUETOOTH** on **ON**,
+   **K3 BLE ROLE** on **DEVICE**. It says **WAITING FOR DEVICE**.
+2. Unplug the FM-1's USB cable (or never plug it in). The app says **Waiting for the FM-1…**: tap
+   **Find the FM-1 over Bluetooth**, and **Allow** Nearby devices. It finds **FM1 Community_BLE**,
+   connects, and the title says **FM-1 Mirror · Bluetooth**.
+3. From then on it connects by itself whenever the FM-1 isn't plugged in. Plug it in, and the app moves
+   to USB (faster); firmware is only ever installed over USB.
+
+The FM-1 takes one Bluetooth connection at a time: close this app before connecting a computer
+([FM-1 Mirror](https://github.com/pfkellogg/fm1-mirror) on a Mac works over Bluetooth too), and the
+other way round.
 
 ## If there's no sound
 
@@ -106,7 +130,8 @@ Plain Java, Android's own MIDI, no other libraries.
   `F0 7D 'F' 'S' 01 row col <runs> F7`, each run a count and an RGB565 colour. Also M-VAVE's updater
   messages.
 - `Installer.java`: the Big Screen installer, a port of M-VAVE's own web updater.
-- `Keys.java`: the keyboard, passed on to the FM-1. `Played.java`: what it played, for the spyglass.
+- `Keys.java`: the keyboard, passed on to the FM-1. `Played.java`: what's played (the keyboard and the
+  FM-1's own keys), for the spyglass. `Ble.java`: the FM-1 over Bluetooth MIDI.
 - `Glass.java`: the spyglass. `StaffView.java`, `Chord.java`, `NoteNames.java`: the staff, the chord
   names and note names, from Synth Spyglass for Android.
 - `firmware/`: the Big Screen firmware package the app installs, built from
