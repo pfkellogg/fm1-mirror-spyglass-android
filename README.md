@@ -127,7 +127,7 @@ include a pretend FM-1 ("FM1 Simulator") for trying the app without one.
 
 The screen messages work with any FM-1 firmware that sends them (the screen part is MIT). The first community firmware
 with it: **ChoralRoot + FM-1 Big Screen** ([pfkellogg/ChoralRootFM1](https://github.com/pfkellogg/ChoralRootFM1/blob/big-screen/BIG_SCREEN.md)),
-Quixotic7's chord instrument with 26 lines added. Over USB; "Update FM-1" doesn't show on it (it would replace it).
+Quixotic7's chord instrument with 32 lines added. Over USB; "Update FM-1" doesn't show on it (it would replace it).
 
 ## For the curious
 
