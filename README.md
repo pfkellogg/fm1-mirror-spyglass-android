@@ -1,0 +1,116 @@
+# FM-1 Mirror + Spyglass for Android
+
+The M-VAVE FM-1's tiny 1.54-inch screen, **big on an Android tablet or phone**, live. Play the FM-1
+from a USB keyboard through the same app, and watch every note or chord you play in a **spyglass**
+beside the screen.
+
+![FM-1 Mirror + Spyglass on a tablet: the FM-1's screen big, and the spyglass showing A3](docs/screenshot.png)
+
+It combines two free apps for Android: [FM-1 Mirror](https://github.com/pfkellogg/fm1-mirror) (the
+big screen) and [Synth Spyglass](https://github.com/pfkellogg/synth-spyglass-android) (the notes). On
+Android only one app at a time can play the FM-1, so the two can't run together; this one does both.
+
+Questions, or something not working? Write to me: **pfkellogg@gmail.com**
+
+## Download
+
+[**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk)
+(Android 11 or newer)
+
+Open the link on the tablet or phone and tap the file when it has downloaded. It isn't from Google
+Play, so Android asks first: allow your browser to **install unknown apps**, then tap **Install**.
+
+> **Not the green "Code" button.** GitHub's green **Code → Download ZIP** gives the app's source
+> code, which doesn't install. Use the link above, or **Releases** on the right of the page.
+
+Already have FM-1 Mirror for Android? This installs over it, as an update.
+
+## Plugging it in
+
+The tablet's USB-C port takes a small **USB hub** (one with its own power input is best, so the tablet
+charges too). Into the hub:
+
+- the **M-VAVE FM-1**, with its USB cable
+- the **keyboard** (any USB MIDI keyboard), or a USB MIDI interface whose MIDI IN comes from another
+  instrument or a sequencer
+
+The FM-1's sound still comes out of its own headphone jack, as always. If the hub has a power input,
+plug the hub into the tablet first and its power in after: the tablet may otherwise only charge from it
+and not see what's plugged in.
+
+## The FM-1's screen: one-time setup
+
+The FM-1 doesn't normally send its screen anywhere, so it needs the **FM-1 Big Screen** firmware: M-VAVE's
+free Official Open firmware plus one small addition that sends the screen over the USB cable. Open the
+app with the FM-1 plugged in and it tells you which firmware the FM-1 has and what to do. With the
+firmware it came with, it's two steps:
+
+1. **M-VAVE's Official Open firmware**, from M-VAVE's
+   [FM1 Workbench](https://open.m-vave.com/fm1-workbench) page in Chrome (a computer is easiest):
+   **Device update › Recovery & force update**, tick **Force flash**, **Connect device**, tick
+   **I have backed up…**, **Force flash**. This replaces the FM-1's sounds with M-VAVE's: if you made
+   your own, save them first on the page's **Projects & sounds** tab.
+2. Plug the FM-1 back into the tablet: the app offers **Install Big Screen** (about 2 minutes). Keep the
+   FM-1 plugged in and on until it's done.
+
+Going back is easy: on the same page, **Device update › Start update** puts back M-VAVE's own Official
+Open firmware, and **Recovery & force update › Restore original V15** the firmware it came with.
+
+## Using it
+
+- **The screen** fills the middle, live: turn a knob, press a button, play a note, and it changes with
+  the little one. **Full screen** (tap the screen to come back), and **Color** for other looks: Bright
+  color, Yellow on black, White on black, Black on white.
+- **Keys:** the keyboard plugged in plays the FM-1 through the app. It's picked by itself; tap
+  **Keys** to choose another device (a sequencer, a MIDI interface) or **None**.
+  - Everything is moved to **channel 1**, where the FM-1 listens: a keyboard knocked onto another channel
+    (a Keystation came set to 13) would be silent otherwise. **Keys › Channels** sends them as they come
+    instead, for a sequencer playing the FM-1's tracks on their own channels.
+  - Clock goes through too. SysEx never does: that's how the FM-1 is updated.
+- **Spyglass:** a round brass eyepiece beside the screen with the note or chord you play
+  ("A3 220 Hz", "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
+  key. Drag it to move it; pinch it, or tap it and drag the grip on its rim, to resize it; tap it and
+  **✕** to put it away.
+- Playing works while the app is on screen: switched to another app, it lets go of the FM-1.
+
+## If there's no sound
+
+- **The keyboard's volume slider** (a Keystation has one) sets the FM-1's volume. Slid down, the FM-1
+  plays silently; turning the FM-1's preset knob loads the preset's own volume, which is why that seems
+  to fix it. Keep the slider up.
+- **Close Synth Spyglass and MIDI Bridge.** If one of them is on, it holds the FM-1 and this app shows
+  "Waiting for the FM-1…".
+- **The FM-1's volume and headphone cable**, as always.
+
+## Build it yourself
+
+Java 17 and the Android SDK:
+
+```
+./gradlew assembleDebug
+# -> app/build/outputs/apk/debug/app-debug.apk
+```
+
+`test/run.sh` checks the screen and updater messages on a computer, no tablet needed. Debug builds
+include a pretend FM-1 ("FM1 Simulator") for trying the app without one.
+
+## For the curious
+
+Plain Java, Android's own MIDI, no other libraries.
+
+- `Codec.java`: the screen messages. The app sends `F0 7D 'F' 'S' 00 F7` about once a second (`01` to
+  have the whole screen sent again); the FM-1 sends each row it paints as
+  `F0 7D 'F' 'S' 01 row col <runs> F7`, each run a count and an RGB565 colour. Also M-VAVE's updater
+  messages.
+- `Installer.java`: the Big Screen installer, a port of M-VAVE's own web updater.
+- `Keys.java`: the keyboard, passed on to the FM-1. `Played.java`: what it played, for the spyglass.
+- `Glass.java`: the spyglass. `StaffView.java`, `Chord.java`, `NoteNames.java`: the staff, the chord
+  names and note names, from Synth Spyglass for Android.
+- `firmware/`: the Big Screen firmware package the app installs, built from
+  [pfkellogg/fm1_open, branch `screen-out`](https://github.com/pfkellogg/fm1_open/tree/screen-out).
+  Its screen part is MIT licensed, so any FM-1 firmware can use it.
+
+## License
+
+GPL-3.0 (see LICENSE), like M-VAVE's FM1 Open application code it builds on. © 2026 Patrick F.
+Kellogg. M-VAVE and FM-1 are M-VAVE's names; this app isn't an M-VAVE product.

@@ -1,0 +1,6 @@
+<devices>
+    <device manufacturer="FM-1 Mirror" product="FM1 Simulator">
+        <input-port name="in" />
+        <output-port name="out" />
+    </device>
+</devices>
