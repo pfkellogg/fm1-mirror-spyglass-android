@@ -52,6 +52,11 @@ final class Glass extends FrameLayout {
     private int[] shownNotes;
     private String shownChord;
     private int shownVel = -1;
+    /** The sound playing, when the FM-1 says it: across the top of the glass. */
+    private String sound;
+    private final Paint band = new Paint(Paint.ANTI_ALIAS_FLAG), soundText = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private static final int SOUND = Color.rgb(0xf7, 0xdc, 0x92), SOUND_GLASS = Color.argb(225, 16, 12, 6),
+            SOUND_SHINE = Color.argb(18, 255, 240, 200);
 
     // Name a chord once the keys stay put (Synth Spyglass's rule).
     private long seenNoteOns = -1;
@@ -326,10 +331,16 @@ final class Glass extends FrameLayout {
         }
     };
 
+    void setSound(String s) {
+        sound = s;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas c) {
         float d = Math.min(getWidth(), getHeight()), cx = getWidth() / 2f, cy = getHeight() / 2f;
         lens(c, cx, cy, d);
+        if (sound != null) soundBand(c, sound, cx, cy - d * 0.325f, d);
         String name, detail;
         if (shownNotes == null) {
             name = "♪";
@@ -350,7 +361,7 @@ final class Glass extends FrameLayout {
             detail = String.format(Locale.US, "%s   %.0f Hz", NoteNames.name(n), NoteNames.hz(n));
             if (shownVel > 0) detail += "   vel " + shownVel;
         }
-        label(c, name, cx, cy - d * 0.195f, shownChord != null ? d * 0.19f : d * 0.24f, d * 0.72f, Color.WHITE);
+        label(c, name, cx, cy - d * 0.165f, shownChord != null ? d * 0.19f : d * 0.24f, d * 0.72f, Color.WHITE);
         label(c, detail, cx, cy + d * 0.325f, Math.max(13 * density, d * 0.065f), d * 0.54f, Color.WHITE);
         if (shownChord == null && shownVel > 0) {
             // How hard the key was hit: a short brass bar under it, full at 127.
@@ -363,6 +374,46 @@ final class Glass extends FrameLayout {
             r.set(cx - w / 2, top, cx - w / 2 + w * shownVel / 127f, top + h);
             c.drawRoundRect(r, h / 2, h / 2, p);
         }
+    }
+
+    /** The sound's name: warm gold letters, a little spaced, on a rounded band of dark smoked glass with a thin
+     *  brass edge (the rim's) and a soft shine on its upper half (as FM-1 Mirror on a computer). */
+    private void soundBand(Canvas c, String s, float x, float y, float d) {
+        String t = "\u266a  " + s;
+        float size = Math.max(12 * density, d * 0.06f), room = d * 0.5f;
+        soundText.setLetterSpacing(0.06f);
+        soundText.setTextSize(size);
+        float w = soundText.measureText(t);
+        if (w > room) {
+            size *= room / w;
+            soundText.setTextSize(size);
+            w = soundText.measureText(t);
+        }
+        Paint.FontMetrics m = soundText.getFontMetrics();
+        float h = (m.descent - m.ascent) + size * 0.5f, bw = w + size * 1.4f;
+        r.set(x - bw / 2, y - h / 2, x + bw / 2, y + h / 2);
+        float rr = h / 2;
+        band.setStyle(Paint.Style.FILL);
+        band.setColor(Color.argb(90, 0, 0, 0));                      // its shadow
+        r.offset(0, 2 * density);
+        c.drawRoundRect(r, rr, rr, band);
+        r.offset(0, -2 * density);
+        band.setColor(SOUND_GLASS);
+        c.drawRoundRect(r, rr, rr, band);
+        band.setColor(SOUND_SHINE);
+        RectF up = new RectF(r.left + 2 * density, r.top + 2 * density, r.right - 2 * density, r.centerY());
+        c.drawRoundRect(up, up.height() / 2, up.height() / 2, band);
+        band.setStyle(Paint.Style.STROKE);
+        band.setStrokeWidth(1.25f * density);
+        band.setColor(BRASS_LIGHT);
+        c.drawRoundRect(r, rr, rr, band);
+        float base = y - (m.ascent + m.descent) / 2;
+        soundText.setTextAlign(Paint.Align.CENTER);
+        soundText.setColor(Color.argb(200, 0, 0, 0));
+        c.drawText(t, x, base + density, soundText);                      // its shadow
+        soundText.setColor(SOUND);
+        c.drawText(t, x + 0.45f * density, base, soundText);              // (twice, a hair apart: a touch bolder)
+        c.drawText(t, x, base, soundText);
     }
 
     /** Text centred on (x, y), smaller if it wouldn't fit in `room`. */

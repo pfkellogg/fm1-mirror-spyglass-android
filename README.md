@@ -75,7 +75,9 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   - Clock goes through too. SysEx never does: that's how the FM-1 is updated.
 - **Spyglass:** a round brass eyepiece beside the screen with the note or chord you play
   ("A3 220 Hz", "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
-  key. Drag it to move it; pinch it, or tap it and drag the grip on its rim, to resize it; tap it and
+  key. On top of it, the **sound playing** (`T1 FM6 ICE BELL`), when the firmware says it
+  (since 1.4.0: [JIANT FM + Big Screen](https://github.com/pfkellogg/JIANT/blob/big-screen/BIG_SCREEN.md) does,
+  others don't yet, and then there's nothing on top). Drag it to move it; pinch it, or tap it and drag the grip on its rim, to resize it; tap it and
   **✕** to put it away.
   - **The FM-1's own keys** show too, once its **KEY OUT** is on (once, it's remembered): on the FM-1,
     press **SEQ**, turn **ALGO** to page **6/8 MIDI TRACK**, and turn **K4 (KEY OUT)** to **ON**
@@ -132,6 +134,8 @@ Quixotic7's chord instrument with 32 lines added. Over USB; "Update FM-1" doesn'
 The second: **JIANT FM + FM-1 Big Screen** ([pfkellogg/JIANT](https://github.com/pfkellogg/JIANT/blob/big-screen/BIG_SCREEN.md)),
 juanjiant's music system (synths, drums, a sequencer, songs), V10.49 with 38 lines added. Also over USB only, and
 "Update FM-1" doesn't show on it either. JIANT has daily builds; ours stays at V10.49 until the screen is added to a newer one. Watch it: [JIANT FM on a Big Screen](https://youtu.be/7o5s0EDJX5c).
+JIANT also says which sound is playing, shown on top of the spyglass, and the app finds it by its own USB name,
+"JIANT" (both since 1.4.0; earlier versions kept waiting for the FM-1).
 
 ## For the curious
 
@@ -139,8 +143,9 @@ Plain Java, Android's own MIDI, no other libraries.
 
 - `Codec.java`: the screen messages. The app sends `F0 7D 'F' 'S' 00 F7` about once a second (`01` to
   have the whole screen sent again); the FM-1 sends each row it paints as
-  `F0 7D 'F' 'S' 01 row col <runs> F7`, each run a count and an RGB565 colour. Also M-VAVE's updater
-  messages.
+  `F0 7D 'F' 'S' 01 row col <runs> F7`, each run a count and an RGB565 colour. Firmware that knows it
+  also sends the sound playing, `F0 7D 'F' 'S' 02 <name> F7` (ASCII), after each hello and when it changes.
+  Also M-VAVE's updater messages.
 - `Installer.java`: the Big Screen installer, a port of M-VAVE's own web updater.
 - `Keys.java`: the keyboard, passed on to the FM-1. `Played.java`: what's played (the keyboard and the
   FM-1's own keys), for the spyglass. `Ble.java`: the FM-1 over Bluetooth MIDI.

@@ -60,6 +60,8 @@ public class MainActivity extends Activity {
     private boolean changed;
     private long lastScreen; // when the last screen message came (0: not since the link opened)
     private String identity;
+    /** The sound playing, when the firmware says it ("T1 FM6 ICE BELL"): on top of the spyglass. */
+    private volatile String sound;
 
     private volatile Fm1Port link;
     private volatile long opened;
@@ -218,6 +220,7 @@ public class MainActivity extends Activity {
                         lastScreen = 0;
                         identity = null;
                     }
+                    setSound(null);
                     lost = false;
                     opened = System.currentTimeMillis();
                     askedIdentity = askedBuild = false;
@@ -378,12 +381,22 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    /** The sound playing (null: not known), shown on top of the spyglass. */
+    private void setSound(String name) {
+        if (java.util.Objects.equals(name, sound)) return;
+        sound = name;
+        runOnUiThread(() -> {
+            if (glass != null) glass.setSound(name);
+        });
+    }
+
     /** The spyglass on or off; it stays as it was next time. */
     private void setGlass(boolean on) {
         prefs.edit().putBoolean("glass", on).apply();
         if (on == (glass != null)) return;
         if (on) {
             glass = new Glass(this, played, prefs, () -> setGlass(false));
+            glass.setSound(sound);
             stage.addView(glass);
             stage.post(() -> {
                 if (glass != null) glass.place(stage.getWidth(), stage.getHeight());
@@ -408,6 +421,11 @@ public class MainActivity extends Activity {
     }
 
     private void onMessage(byte[] m) {
+        String name = Codec.sound(m);
+        if (name != null) {
+            setSound(name.isEmpty() ? null : name);
+            return;
+        }
         synchronized (this) {
             if (Codec.apply(pixels, m)) {
                 lastScreen = System.currentTimeMillis();

@@ -26,6 +26,18 @@ final class Codec {
 
     // ---- the screen
 
+    /** The sound playing, if this is the FM-1 saying it: F0 7D 'F' 'S' 02 name F7 (ASCII; "" for none). Firmware that
+     *  knows it (JIANT + Big Screen) sends it after each hello and whenever it changes. */
+    static String sound(byte[] m) {
+        int n = m.length;
+        if (n < 6 || m[0] != (byte) 0xf0 || m[1] != 0x7d || m[2] != 'F' || m[3] != 'S' || m[4] != 2 || m[n - 1] != (byte) 0xf7)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 5; i < n - 1; i++)
+            if (m[i] >= 0x20 && m[i] < 0x7f) sb.append((char) m[i]);
+        return sb.toString().trim().replaceAll("\\s+", " ");
+    }
+
     /** Paints one row message into `pixels` (RGB565, row by row); false if it isn't one. */
     static boolean apply(int[] pixels, byte[] m) {
         int n = m.length;
@@ -127,7 +139,10 @@ final class Codec {
     /** The FM-1's USB MIDI name: "FM1 Community" with Open firmware, "USB Composite Device" with the original. */
     static boolean isFm1(String name) {
         String n = name.toLowerCase();
-        return (n.contains("fm1") || n.contains("fm-1") || n.contains("usb composite") || n.contains("usb-midi") || n.contains("usb midi") || isUpdaterName(n))
+        // (the Felucca family names itself: JIANT FM "Juan Jiant" / "JIANT", Felucca "Felucca", ChoralRoot "ChoralRoot";
+        // JIANT's own updater, "JIANT Update", is not one to mirror)
+        boolean felucca = (n.contains("jiant") && !n.contains("update")) || n.contains("felucca") || n.contains("choralroot");
+        return (n.contains("fm1") || n.contains("fm-1") || felucca || n.contains("usb composite") || n.contains("usb-midi") || n.contains("usb midi") || isUpdaterName(n))
                 && !n.contains("bridge");
     }
 
