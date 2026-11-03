@@ -125,7 +125,7 @@ Java 17 and the Android SDK:
 `test/run.sh` checks the screen and updater messages on a computer, no tablet needed. Debug builds
 include a pretend FM-1 ("FM1 Simulator") for trying the app without one.
 
-## Other firmwares: ChoralRoot and JIANT FM
+## Other firmwares: ChoralRoot, JIANT FM and Skiff
 
 The screen messages work with any FM-1 firmware that sends them (the screen part is MIT). The first community firmware
 with it: **ChoralRoot + FM-1 Big Screen** ([pfkellogg/ChoralRootFM1](https://github.com/pfkellogg/ChoralRootFM1/blob/big-screen/BIG_SCREEN.md)),
@@ -136,6 +136,11 @@ juanjiant's music system (synths, drums, a sequencer, songs), V10.49 with 38 lin
 "Update FM-1" doesn't show on it either. JIANT has daily builds; ours stays at V10.49 until the screen is added to a newer one. Watch it: [JIANT FM on a Big Screen](https://youtu.be/7o5s0EDJX5c).
 JIANT also says which sound is playing, shown on top of the spyglass, and the app finds it by its own USB name,
 "JIANT" (both since 1.4.0; earlier versions kept waiting for the FM-1).
+
+The third: **Skiff + FM-1 Big Screen** ([pfkellogg/skiff](https://github.com/pfkellogg/skiff/blob/big-screen/BIG_SCREEN.md)),
+illuminus5's six-track groovebox, Skiff 2.1.1 with about 37 lines added, and the sound playing on the spyglass too. USB only.
+All three come from Leo Kuroshita's Felucca, and so do 23 of the 25 most popular FM-1 firmwares
+([FIRMWARE_FAMILY.md](https://github.com/pfkellogg/skiff/blob/big-screen/FIRMWARE_FAMILY.md)). Watch it: [Skiff on a Big Screen + the FM-1 Firmware Family Tree](https://youtu.be/lmMT-FtAoSE).
 
 ## For the curious
 
