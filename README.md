@@ -123,11 +123,15 @@ Java 17 and the Android SDK:
 `test/run.sh` checks the screen and updater messages on a computer, no tablet needed. Debug builds
 include a pretend FM-1 ("FM1 Simulator") for trying the app without one.
 
-## Other firmwares: ChoralRoot
+## Other firmwares: ChoralRoot and JIANT FM
 
 The screen messages work with any FM-1 firmware that sends them (the screen part is MIT). The first community firmware
 with it: **ChoralRoot + FM-1 Big Screen** ([pfkellogg/ChoralRootFM1](https://github.com/pfkellogg/ChoralRootFM1/blob/big-screen/BIG_SCREEN.md)),
 Quixotic7's chord instrument with 32 lines added. Over USB; "Update FM-1" doesn't show on it (it would replace it).
+
+The second: **JIANT FM + FM-1 Big Screen** ([pfkellogg/JIANT](https://github.com/pfkellogg/JIANT/blob/big-screen/BIG_SCREEN.md)),
+juanjiant's music system (synths, drums, a sequencer, songs), V10.49 with 38 lines added. Also over USB only, and
+"Update FM-1" doesn't show on it either. JIANT has daily builds; ours stays at V10.49 until the screen is added to a newer one. Watch it: [JIANT FM on a Big Screen](https://youtu.be/7o5s0EDJX5c).
 
 ## For the curious
 
