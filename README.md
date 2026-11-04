@@ -55,6 +55,12 @@ firmware it came with, it's two steps:
 2. Plug the FM-1 back into the tablet: the app offers **Install Big Screen** (about 2 minutes). Keep the
    FM-1 plugged in and on until it's done.
 
+**Coming from M-VAVE's V16:** the FM-1 keeps V16's updater, which names itself `ota-FM-1_016`. This app finds it
+from 1.4.0; **older versions looked only for V15's updater**, said the connection was lost partway through the
+install, and left the FM-1 waiting in its updater (M-Upgrade or M-VAVE's page finishes it). With an older version,
+put the original V15 back first (**Recovery & force update › Restore original V15**). Thanks to a viewer who
+reported it.
+
 Going back is easy: on the same page, **Device update › Start update** puts back M-VAVE's own Official
 Open firmware, and **Recovery & force update › Restore original V15** the firmware it came with.
 

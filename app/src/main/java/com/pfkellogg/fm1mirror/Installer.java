@@ -26,7 +26,15 @@ final class Installer implements Runnable {
     }
 
     /** The package uses M-VAVE's own updater program, which names itself this while it works. */
-    private static final String LOADER_IDENTITY = "ota-FM-1_015";
+    /** The FM-1's updater: "ota-FM-1_" and the version of the start-up part it came with, "ota-FM-1_015" on a unit
+     *  from V15, "ota-FM-1_016" from V16 (M-VAVE's FM-1.fwsc since 2026-10-21). Any of them is the FM-1's updater. */
+    private static final String LOADER_IDENTITY = "ota-FM-1_";
+
+    /** The identity looked for: exact, or (ending in "_") that model with any version. */
+    static boolean sameIdentity(String want, String id) {
+        if (!want.endsWith("_")) return want.equals(id);
+        return id.startsWith(want) && id.length() > want.length() && id.substring(want.length()).matches("[0-9]+");
+    }
     /** When the FM-1 doesn't come back on USB in time: an update can always be finished. */
     private static final String LOST = "the phone lost the FM-1 partway through. Nothing is broken: the FM-1 keeps waiting for the rest of the update";
 
@@ -127,7 +135,7 @@ final class Installer implements Runnable {
                 Link link = Link.open(mm, info);
                 if (link == null) continue;
                 String id = link.identity();
-                if (id != null && (want == null || want.equals(id))) found.add(new Found(link, id));
+                if (id != null && (want == null || sameIdentity(want, id))) found.add(new Found(link, id));
                 else link.close();
             }
             if (found.size() > 1) {
