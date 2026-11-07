@@ -48,6 +48,13 @@ final class Glass extends FrameLayout {
     private TextView close, grip;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG), text = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF r = new RectF();
+    private static final int ACCENT = Color.rgb(80, 200, 255), DIM = Color.rgb(110, 120, 130);
+    // The FM-1's sound, while it's plugged in and listening is allowed (Scope.java).
+    private Scope scope;
+    private long scopeLookedAt;
+    private float[] wave;
+    private boolean staffBeside;
+    private final android.graphics.Path waveLine = new android.graphics.Path();
     private int size; // diameter, pixels
 
     // What's on show: one note, or a chord's keys and name.
@@ -117,6 +124,8 @@ final class Glass extends FrameLayout {
         super.onDetachedFromWindow();
         ui.removeCallbacks(ticker);
         ui.removeCallbacks(hideHandles);
+        if (scope != null) scope.close();
+        scope = null;
     }
 
     private TextView handle(String s) {
@@ -132,9 +141,9 @@ final class Glass extends FrameLayout {
 
     /** Sizes the staff and the handles to the diameter. */
     private void layoutParts() {
-        int w = Math.round(size * 0.45f), h = Math.round(w * 1.06f); // the staff is what's read: as big as the glass allows
+        int w = Math.round(size * (staffBeside ? 0.42f : 0.45f)), h = Math.round(w * 1.06f); // the staff is what's read: as big as the glass allows
         FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(w, h, Gravity.TOP | Gravity.START);
-        slp.leftMargin = Math.round(size / 2f - w / 2f);
+        slp.leftMargin = Math.round(size / 2f + (staffBeside ? -size * 0.165f : 0) - w / 2f); // left of the waveform
         slp.topMargin = Math.round(size / 2f + size * 0.087f - h / 2f);
         staff.setLayoutParams(slp);
 
@@ -307,9 +316,27 @@ final class Glass extends FrameLayout {
         invalidate();
     }
 
+    /** The FM-1's sound: open it when it's plugged in (looked for every 2 s), and keep the wave fresh. */
+    private void listen() {
+        long now = System.currentTimeMillis();
+        if ((scope == null || scope.isDead()) && now - scopeLookedAt > 2000) {
+            scopeLookedAt = now;
+            scope = Scope.open(getContext());
+        }
+        boolean hearing = scope != null && scope.listening(), before = staffBeside;
+        float[] w = hearing && shownNotes != null ? scope.wave(NoteNames.hz(shownNotes[0])) : null;
+        staffBeside = hearing;
+        if (staffBeside != before && size > 0) layoutParts();
+        if (w != null || wave != null || staffBeside != before) {
+            wave = w;
+            invalidate();
+        }
+    }
+
     private final Runnable ticker = new Runnable() {
         @Override
         public void run() {
+            listen();
             long ons = played.noteOns();
             if (ons != seenNoteOns) {
                 seenNoteOns = ons;
@@ -379,6 +406,28 @@ final class Glass extends FrameLayout {
         } else {
             label(c, name, cx, cy - d * 0.215f, shownChord != null ? d * 0.10f : d * 0.115f, d * 0.72f, Color.WHITE);
             label(c, detail, cx, cy + d * 0.365f, Math.max(12 * density, d * 0.055f), d * 0.54f, Color.WHITE);
+        }
+        if (staffBeside) {
+            // The FM-1's real waveform, right of the staff; a flat grey line while it's quiet.
+            r.set(cx + d * 0.075f, cy - d * 0.02f, cx + d * 0.355f, cy + d * 0.19f);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(Math.max(2 * density, d * 0.006f));
+            p.setStrokeJoin(Paint.Join.ROUND);
+            float[] w = wave;
+            waveLine.reset();
+            if (w != null) {
+                p.setColor(ACCENT);
+                for (int i = 0; i < w.length; i++) {
+                    float x = r.left + r.width() * i / (w.length - 1), y = r.centerY() - w[i] * r.height() / 2;
+                    if (i == 0) waveLine.moveTo(x, y);
+                    else waveLine.lineTo(x, y);
+                }
+            } else {
+                p.setColor(DIM);
+                waveLine.moveTo(r.left, r.centerY());
+                waveLine.lineTo(r.right, r.centerY());
+            }
+            c.drawPath(waveLine, p);
         }
         if (shownChord == null && shownVel > 0) {
             // How hard the key was hit: a short brass bar under it, full at 127.

@@ -414,6 +414,9 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean("glass", on).apply();
         if (on == (glass != null)) return;
         if (on) {
+            // The FM-1's sound for the spyglass's waveform: Android calls any audio input the microphone.
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                requestPermissions(new String[] {android.Manifest.permission.RECORD_AUDIO}, 8);
             glass = new Glass(this, played, prefs, () -> setGlass(false));
             glass.setSound(sound);
             stage.addView(glass);

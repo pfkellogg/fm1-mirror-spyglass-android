@@ -92,7 +92,7 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   - **The FM-1's own keys** show too, once its **KEY OUT** is on (once, it's remembered): on the FM-1,
     press **SEQ**, turn **ALGO** to page **6/8 MIDI TRACK**, and turn **K4 (KEY OUT)** to **ON**
     (**K3, OUT PORT**, on **USB+BLE**).
-  From 1.4.1 (next release) a note or chord clears 3 seconds after the last key comes up, leaving empty staves over "play a note".
+  From 1.4.1 a note or chord clears 3 seconds after the last key comes up, leaving empty staves over "play a note", and the glass shows the **waveform** of the FM-1's real sound beside the staff, over USB (not Bluetooth). Android asks once to record audio, because it counts any audio input as the microphone: the app listens only to the FM-1.
 - **Update FM-1** shows in the bar when this app has a newer Big Screen firmware than the FM-1 runs
   (over USB only; about 2 minutes, your sounds and projects stay).
 - Playing works while the app is on screen: switched to another app, it lets go of the FM-1.
