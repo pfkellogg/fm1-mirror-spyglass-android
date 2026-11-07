@@ -554,12 +554,14 @@ public class MainActivity extends Activity {
                 break;
             case "other":
                 heading("This FM-1 runs another firmware");
-                body("It says it is \"" + detail + "\". Big Screen installs over M-VAVE's Official Open firmware, so that comes first.");
+                body("It says it is \"" + detail + "\". It's fine to keep using it, and nothing needs changing. This firmware doesn't send its screen, so it can't show here.");
+                body("Only if you want to see the screen here: Big Screen replaces this firmware, and it installs over M-VAVE's Official Open firmware, so that comes first.");
                 step1();
                 break;
             case "unknown":
                 heading("No screen from the FM-1 yet");
-                body("Connected to \"" + detail + "\", but it isn't sending its screen and didn't say which firmware it runs. With M-VAVE's original firmware:");
+                body("Connected to \"" + detail + "\", but it isn't sending its screen and didn't say which firmware it runs. If you're using a community firmware, it's fine to keep it, and nothing needs changing: it just can't show here.");
+                body("Only if you want to see the screen here, or if this FM-1 has M-VAVE's original firmware:");
                 step1();
                 break;
             case "installing":
