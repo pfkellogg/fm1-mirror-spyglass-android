@@ -61,6 +61,8 @@ install, and left the FM-1 waiting in its updater (M-Upgrade or M-VAVE's page fi
 put the original V15 back first (**Recovery & force update › Restore original V15**). Thanks to a viewer who
 reported it.
 
+Tested with FM-1 Mirror 1.3.0 on a Mac, on a real FM-1 that had been on V16 (2026-11-04): V16, then Official Open, then Big Screen, with no lost connection. Not yet tested from V16 on Android. Installing Big Screen replaces V16. [The results](https://github.com/pfkellogg/fm1-mirror/blob/master/docs/V16-TEST.md), and [the video](https://youtu.be/WOjvFdw5KMA).
+
 Going back is easy: on the same page, **Device update › Start update** puts back M-VAVE's own Official
 Open firmware, and **Recovery & force update › Restore original V15** the firmware it came with.
 
@@ -147,6 +149,10 @@ The third: **Skiff + FM-1 Big Screen** ([pfkellogg/skiff](https://github.com/pfk
 illuminus5's six-track groovebox, Skiff 2.1.1 with about 37 lines added, and the sound playing on the spyglass too. USB only.
 All three come from Leo Kuroshita's Felucca, and so do 23 of the 25 most popular FM-1 firmwares
 ([FIRMWARE_FAMILY.md](https://github.com/pfkellogg/skiff/blob/big-screen/FIRMWARE_FAMILY.md)). Watch it: [Skiff on a Big Screen + the FM-1 Firmware Family Tree](https://youtu.be/lmMT-FtAoSE).
+
+The fourth: **SLOOP + FM-1 Big Screen**, isod89's live groovebox and the most starred FM-1 firmware, SLOOP 2.8.4 with about 40 lines added, and the sound playing on the spyglass too. Tested on a real FM-1 (2026-11-04) with FM-1 Mirror on a Mac, but **not released yet**. Watch it: [SLOOP on a Big Screen](https://youtu.be/Pd4Bm6JvtkU).
+
+With Keys on SLOOP, a keyboard plays track 1 only: FM-1 Mirror on a Mac sends it on channel 1, while the FM-1's own keys play the selected track. Tested 2026-11-04: on track 1 both play the same sound. To have the keyboard follow the selected track, SLOOP's manual gives GLO > MIDI 2 > IN = CH 1 (not tested yet). Tested with FM-1 Mirror on a Mac.
 
 ## For the curious
 
