@@ -36,6 +36,8 @@ final class Glass extends FrameLayout {
     private static final int BRASS_DARK = Color.rgb(0x8a, 0x62, 0x24);
     private static final int BRASS_SHADOW = Color.rgb(0x3e, 0x2a, 0x0e);
     private static final long CHORD_SETTLE_MS = 100, HANDLES_MS = 4000;
+    private static final long HOLD_MS = 3000;   // a note or chord stays this long after the last key comes up
+    private long releasedAt = -1;
 
     private final Played played;
     private final SharedPreferences prefs;
@@ -282,7 +284,8 @@ final class Glass extends FrameLayout {
         shownNotes = null;
         shownChord = null;
         shownVel = -1;
-        staff.setVisibility(View.GONE);
+        staff.setVisibility(View.VISIBLE);   // the staves stay, empty, over "play a note"
+        staff.setNotes();
         invalidate();
     }
 
@@ -327,6 +330,16 @@ final class Glass extends FrameLayout {
                     if (chord != null) showChord(keys, chord);
                 }
             }
+            if (shownNotes == null || played.keysDown().length > 0) {
+                releasedAt = -1;
+            } else {
+                long now = System.currentTimeMillis();
+                if (releasedAt < 0) releasedAt = now;
+                else if (now - releasedAt >= HOLD_MS) {
+                    releasedAt = -1;
+                    showNothing();
+                }
+            }
             ui.postDelayed(this, 50);
         }
     };
@@ -361,9 +374,8 @@ final class Glass extends FrameLayout {
             detail = String.format(Locale.US, "%s   %.0f Hz", NoteNames.name(n), NoteNames.hz(n));
             if (shownVel > 0) detail += "   vel " + shownVel;
         }
-        if (shownNotes == null) { // nothing played yet: big, with no staff to make room for
-            label(c, name, cx, cy - d * 0.165f, d * 0.24f, d * 0.72f, Color.WHITE);
-            label(c, detail, cx, cy + d * 0.325f, Math.max(13 * density, d * 0.065f), d * 0.54f, Color.WHITE);
+        if (shownNotes == null) { // nothing played: the empty staves, and the hint where a note's details go
+            label(c, detail, cx, cy + d * 0.365f, Math.max(12 * density, d * 0.055f), d * 0.54f, Color.WHITE);
         } else {
             label(c, name, cx, cy - d * 0.215f, shownChord != null ? d * 0.10f : d * 0.115f, d * 0.72f, Color.WHITE);
             label(c, detail, cx, cy + d * 0.365f, Math.max(12 * density, d * 0.055f), d * 0.54f, Color.WHITE);
