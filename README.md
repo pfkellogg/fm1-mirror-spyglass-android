@@ -92,6 +92,7 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   - **The FM-1's own keys** show too, once its **KEY OUT** is on (once, it's remembered): on the FM-1,
     press **SEQ**, turn **ALGO** to page **6/8 MIDI TRACK**, and turn **K4 (KEY OUT)** to **ON**
     (**K3, OUT PORT**, on **USB+BLE**).
+  From 1.4.1 (next release) a note or chord clears 3 seconds after the last key comes up, leaving empty staves over "play a note".
 - **Update FM-1** shows in the bar when this app has a newer Big Screen firmware than the FM-1 runs
   (over USB only; about 2 minutes, your sounds and projects stay).
 - Playing works while the app is on screen: switched to another app, it lets go of the FM-1.
