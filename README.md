@@ -152,7 +152,7 @@ illuminus5's six-track groovebox, Skiff 2.1.1 with about 37 lines added, and the
 All three come from Leo Kuroshita's Felucca, and so do 23 of the 25 most popular FM-1 firmwares
 ([FIRMWARE_FAMILY.md](https://github.com/pfkellogg/skiff/blob/big-screen/FIRMWARE_FAMILY.md)). Watch it: [Skiff on a Big Screen + the FM-1 Firmware Family Tree](https://youtu.be/lmMT-FtAoSE).
 
-The fourth: **SLOOP + FM-1 Big Screen**, isod89's live groovebox and the most starred FM-1 firmware, SLOOP 2.8.4 with about 40 lines added, and the sound playing on the spyglass too. Tested on a real FM-1 (2026-11-04) with FM-1 Mirror on a Mac, but **not released yet**. Watch it: [SLOOP on a Big Screen](https://youtu.be/Pd4Bm6JvtkU).
+The fourth: **[SLOOP + FM-1 Big Screen](https://github.com/pfkellogg/sloop-fm1/blob/big-screen/BIG_SCREEN.md)**, isod89's live groovebox and the most starred FM-1 firmware, SLOOP 2.8.5 with about 40 lines added, and the sound playing on the spyglass too. Its 2.8.4 version was tested on a real FM-1 (2026-11-04) with FM-1 Mirror on a Mac. The source is public, but there's **no ready-to-install firmware yet**. Watch it: [SLOOP on a Big Screen](https://youtu.be/Pd4Bm6JvtkU).
 
 With Keys on SLOOP, a keyboard plays track 1 only: FM-1 Mirror on a Mac sends it on channel 1, while the FM-1's own keys play the selected track. Tested 2026-11-04: on track 1 both play the same sound. To have the keyboard follow the selected track, SLOOP's manual gives GLO > MIDI 2 > IN = CH 1 (not tested yet). Tested with FM-1 Mirror on a Mac.
 
