@@ -10,8 +10,8 @@ android {
         applicationId "com.pfkellogg.fm1mirror"
         minSdk 30 // WindowInsetsController for full screen
         targetSdk 34
-        versionCode 6
-        versionName "1.4.0"
+        versionCode 7
+        versionName "1.4.1"
     }
     // Release builds are signed with the key named in ../keystore.properties (kept out of git;
     // the same key every time, so a new version installs over the old one).

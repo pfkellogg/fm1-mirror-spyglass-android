@@ -60,6 +60,8 @@ public class MainActivity extends Activity {
     private boolean changed;
     private long lastScreen; // when the last screen message came (0: not since the link opened)
     private String identity;
+    /** What a Felucca-family firmware says it is ("FELUCCA SLOOP 2.8.4"): its USB name may only say "Felucca". */
+    private String firmware;
     /** The sound playing, when the firmware says it ("T1 FM6 ICE BELL"): on top of the spyglass. */
     private volatile String sound;
 
@@ -85,7 +87,9 @@ public class MainActivity extends Activity {
     private LinearLayout bar, panel;
     private FrameLayout stage;
     private ScrollView panelScroll;
-    private Button lookButton, keysButton, updateButton;
+    private Button lookButton, keysButton, updateButton, mirrorButton, smoothButton, showMirror;
+    /** The FM-1's screen shows; and with the jaggies taken off (off: exactly as it sends it). */
+    private boolean mirrorOn = true, smoothOn = true;
     private TextView title;
     private TextView stepText;
     private ProgressBar progressBar;
@@ -111,7 +115,7 @@ public class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(12), dp(8), dp(12), dp(8));
-        title = text("FM-1 Mirror + Spyglass", 22, TEXT);
+        title = text("FM-1 Mirror", 22, TEXT);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -123,8 +127,14 @@ public class MainActivity extends Activity {
             bundled = Codec.buildId(new String(asset("FM1_BIG_SCREEN_V14.build-identity.json")));
         } catch (IOException ignored) {
         }
+        mirrorOn = prefs.getBoolean("mirror", true);
+        smoothOn = prefs.getBoolean("smooth", true);
         keysButton = button("Keys", v -> pickKeys());
         bar.addView(keysButton);
+        mirrorButton = button("", v -> setMirror(!mirrorOn));
+        bar.addView(mirrorButton);
+        smoothButton = button("", v -> toggleSmooth());
+        bar.addView(smoothButton);
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
         lookButton = button(look.label, v -> nextLook());
         bar.addView(lookButton);
@@ -136,6 +146,10 @@ public class MainActivity extends Activity {
         screen = new ScreenView(this);
         screen.setOnClickListener(v -> setFull(!full));
         stage.addView(screen, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        // Always a way back on the hidden mirror's black screen.
+        showMirror = button("Show mirror", v -> setMirror(true));
+        stage.addView(showMirror, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, android.view.Gravity.CENTER_HORIZONTAL | android.view.Gravity.BOTTOM));
+        showMirrors();
         panelScroll = new ScrollView(this);
         panelScroll.setBackgroundColor(BG);
         panel = new LinearLayout(this);
@@ -182,7 +196,7 @@ public class MainActivity extends Activity {
     /** On a thread of its own: opening waits for Android, and the FM-1 stops sending 3 s after the last hello. */
     private void keepLinked() {
         long lookedAt = 0, helloAt = 0, keysLookedAt = 0;
-        boolean askedIdentity = false, askedBuild = false, first = true;
+        boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true;
         while (running) {
             Fm1Port l = link;
             if (l != null && (lost || installing())) {
@@ -219,11 +233,12 @@ public class MainActivity extends Activity {
                     synchronized (this) {
                         lastScreen = 0;
                         identity = null;
+                        firmware = null;
                     }
                     setSound(null);
                     lost = false;
                     opened = System.currentTimeMillis();
-                    askedIdentity = askedBuild = false;
+                    askedIdentity = askedBuild = askedInfo = false;
                     first = true;
                     helloAt = 0;
                     link = l;
@@ -245,6 +260,10 @@ public class MainActivity extends Activity {
                     if (!askedBuild && now - opened > 3000) {
                         askedBuild = true;
                         l.send(Codec.frame(49, new byte[0]));
+                    }
+                    if (!askedInfo && now - opened > 4000) {
+                        askedInfo = true;
+                        l.send(Codec.ASK_INFO);
                     }
                 } catch (IOException e) {
                     lost = true;
@@ -426,6 +445,13 @@ public class MainActivity extends Activity {
             setSound(name.isEmpty() ? null : name);
             return;
         }
+        String info = Codec.firmwareInfo(m);
+        if (info != null) {
+            synchronized (this) {
+                firmware = info;
+            }
+            return;
+        }
         synchronized (this) {
             if (Codec.apply(pixels, m)) {
                 lastScreen = System.currentTimeMillis();
@@ -598,17 +624,20 @@ public class MainActivity extends Activity {
 
     // ---- Bluetooth and the firmware update
 
-    /** The title says when it's over Bluetooth; Update shows when the FM-1 runs another Big Screen build. */
+    /** The title says when it's over Bluetooth and which firmware says it's running; Update shows when the FM-1 runs another Big Screen build. */
     private void showLink() {
         Fm1Port l = link;
         boolean onBle = l != null && Ble.isBluetooth(l.info);
-        String t = onBle ? "FM-1 Mirror · Bluetooth" : "FM-1 Mirror + Spyglass";
-        if (!t.contentEquals(title.getText())) title.setText(t);
         String b = build;
-        String id;
+        String id, fw;
         synchronized (this) {
             id = identity;
+            fw = firmware;
         }
+        // Short: the buttons leave the title little room on a tablet.
+        String t = onBle ? "Bluetooth" : "FM-1 Mirror";
+        if (l != null && fw != null) t = (onBle ? "BT · " : "") + Codec.firmwareName(fw, id);
+        if (!t.contentEquals(title.getText())) title.setText(t);
         // Only over M-VAVE's Open firmware: another firmware with the mirror (ChoralRoot + Big Screen) stays.
         boolean offer = l != null && !onBle && installer == null && b != null && !bundled.isEmpty() && !b.equals(bundled)
                 && id != null && Codec.isOpenFirmware(id) && screenSince(opened);
@@ -700,6 +729,29 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void setMirror(boolean on) {
+        mirrorOn = on;
+        prefs.edit().putBoolean("mirror", on).apply();
+        showMirrors();
+        screen.invalidate();
+    }
+
+    private void toggleSmooth() {
+        smoothOn = !smoothOn;
+        prefs.edit().putBoolean("smooth", smoothOn).apply();
+        synchronized (this) {
+            changed = true; // repaint it the other way
+        }
+        setMirror(true); // it's the mirror that's smooth: show it
+    }
+
+    /** The buttons say what they do, and the hidden mirror keeps a way back. */
+    private void showMirrors() {
+        mirrorButton.setText(mirrorOn ? "Hide mirror" : "Show mirror");
+        smoothButton.setText(smoothOn ? "Smooth: on" : "Smooth: off");
+        showMirror.setVisibility(mirrorOn ? View.GONE : View.VISIBLE);
+    }
+
     private void nextLook() {
         Codec.Look[] all = Codec.Look.values();
         look = all[(look.ordinal() + 1) % all.length];
@@ -783,12 +835,16 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** The FM-1's 240x240 screen, the biggest square that fits; nearest scaling keeps its letters crisp blocks. */
+    /** The FM-1's 240x240 screen, the biggest square that fits; nearest scaling keeps its letters crisp blocks,
+     *  and Smooth draws a bigger, smoothed copy instead. */
     private final class ScreenView extends View {
         private final Bitmap bitmap = Bitmap.createBitmap(Codec.SIZE, Codec.SIZE, Bitmap.Config.ARGB_8888);
         private final int[] argb = new int[Codec.SIZE * Codec.SIZE];
         private final Paint paint = new Paint();
         private final Rect src = new Rect(0, 0, Codec.SIZE, Codec.SIZE), dst = new Rect();
+        private final int smoothSize = Codec.SIZE * Codec.SMOOTH_SCALE;
+        private final Bitmap smooth = Bitmap.createBitmap(smoothSize, smoothSize, Bitmap.Config.ARGB_8888);
+        private final Rect smoothSrc = new Rect(0, 0, smoothSize, smoothSize);
 
         ScreenView(Context c) {
             super(c);
@@ -803,13 +859,16 @@ public class MainActivity extends Activity {
                     changed = false;
                     for (int i = 0; i < argb.length; i++) argb[i] = look.paint(pixels[i]);
                     bitmap.setPixels(argb, 0, Codec.SIZE, 0, 0, Codec.SIZE, Codec.SIZE);
+                    if (smoothOn) smooth.setPixels(Codec.smooth(argb, Codec.SIZE), 0, smoothSize, 0, 0, smoothSize, smoothSize);
                 }
             }
             canvas.drawColor(BG);
+            if (!mirrorOn) return;
             int side = Math.min(getWidth(), getHeight());
             int x = (getWidth() - side) / 2, y = (getHeight() - side) / 2;
             dst.set(x, y, x + side, y + side);
-            canvas.drawBitmap(bitmap, src, dst, paint);
+            paint.setFilterBitmap(smoothOn);
+            canvas.drawBitmap(smoothOn ? smooth : bitmap, smoothOn ? smoothSrc : src, dst, paint);
         }
     }
 }

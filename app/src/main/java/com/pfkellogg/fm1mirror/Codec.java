@@ -23,8 +23,92 @@ final class Codec {
     /** Hello, and send the whole screen again. */
     static final byte[] HELLO_ALL = {(byte) 0xf0, 0x7d, 'F', 'S', 1, (byte) 0xf7};
     static final byte[] ENTER_LOADER = {(byte) 0xf0, 0x22, 0x24, 0x35, 0x7f, (byte) 0xf7};
+    /** Asks a firmware of the Felucca family what it is (its editor's INFO); others don't answer. */
+    static final byte[] ASK_INFO = {(byte) 0xf0, 0x7d, 'F', 'L', 1, (byte) 0xf7};
 
     // ---- the screen
+
+    /** How many times bigger the smooth picture is. */
+    static final int SMOOTH_SCALE = 4;
+
+    /** One Scale2x pass: follows diagonals and curves, by which neighbours are the same colour. */
+    private static int[] scale2x(int[] src, int size) {
+        int out = size * 2;
+        int[] o = new int[out * out];
+        for (int y = 0; y < size; y++) {
+            int up = Math.max(y - 1, 0), down = Math.min(y + 1, size - 1);
+            for (int x = 0; x < size; x++) {
+                int e = src[y * size + x], b = src[up * size + x], h = src[down * size + x];
+                int d = src[y * size + Math.max(x - 1, 0)], f = src[y * size + Math.min(x + 1, size - 1)];
+                int e0 = e, e1 = e, e2 = e, e3 = e;
+                if (b != h && d != f) {
+                    if (d == b) e0 = d;
+                    if (b == f) e1 = f;
+                    if (d == h) e2 = d;
+                    if (h == f) e3 = f;
+                }
+                int i = y * 2 * out + x * 2;
+                o[i] = e0;
+                o[i + 1] = e1;
+                o[i + out] = e2;
+                o[i + out + 1] = e3;
+            }
+        }
+        return o;
+    }
+
+    /** A 1-2-1 blur across and down, on opaque ARGB. */
+    private static int[] soften(int[] src, int size) {
+        int[] across = new int[size * size * 3];
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                int l = src[y * size + Math.max(x - 1, 0)], m = src[y * size + x], r = src[y * size + Math.min(x + 1, size - 1)];
+                int i = (y * size + x) * 3;
+                for (int k = 0; k < 3; k++) {
+                    int sh = 16 - 8 * k;
+                    across[i + k] = (l >> sh & 255) + 2 * (m >> sh & 255) + (r >> sh & 255);
+                }
+            }
+        }
+        int[] o = new int[size * size];
+        for (int y = 0; y < size; y++) {
+            int up = Math.max(y - 1, 0), down = Math.min(y + 1, size - 1);
+            for (int x = 0; x < size; x++) {
+                int a = (up * size + x) * 3, m = (y * size + x) * 3, d = (down * size + x) * 3, v = 0xff;
+                for (int k = 0; k < 3; k++) v = v << 8 | (across[a + k] + 2 * across[m + k] + across[d + k] + 8) >> 4;
+                o[y * size + x] = v;
+            }
+        }
+        return o;
+    }
+
+    /** Smooth: the picture, SMOOTH_SCALE times bigger, with the jaggies off. Scale2x twice, then a light blur.
+     *  The original isn't changed. The same as the desktop app's smooth.rs. */
+    static int[] smooth(int[] argb, int size) {
+        return soften(scale2x(scale2x(argb, size), size * 2), size * SMOOTH_SCALE);
+    }
+
+    /** The firmware's own name, if this is its answer to ASK_INFO: "FELUCCA SLOOP 2.8.4", then other things. */
+    static String firmwareInfo(byte[] m) {
+        int n = m.length;
+        if (n < 7 || m[0] != (byte) 0xf0 || m[1] != 0x7d || m[2] != 'F' || m[3] != 'L' || m[4] != 1 || m[n - 1] != (byte) 0xf7)
+            return null;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 5; i < n - 1 && m[i] != 0; i++)
+            if (m[i] >= 0x20 && m[i] < 0x7f) sb.append((char) m[i]);
+        String name = sb.toString().trim();
+        return name.isEmpty() ? null : name;
+    }
+
+    /** The name to show. SLOOP and Skiff keep Felucca's USB name, and their answers start with "FELUCCA " for the web
+     *  tools: "FELUCCA SLOOP 2.8.4" is SLOOP, and "FELUCCA v2.1.1" is Skiff when its identity is FM-1_7xx, else Felucca. */
+    static String firmwareName(String info, String identity) {
+        if (!info.startsWith("FELUCCA ")) return info;
+        String rest = info.substring(8);
+        boolean bareVersion = rest.length() > 1 && rest.charAt(0) == 'v' && Character.isDigit(rest.charAt(1));
+        if (!bareVersion) return rest;
+        return (identity != null && identity.startsWith("FM-1_7") ? "Skiff " : "Felucca ") + rest;
+    }
 
     /** The sound playing, if this is the FM-1 saying it: F0 7D 'F' 'S' 02 name F7 (ASCII; "" for none). Firmware that
      *  knows it (JIANT + Big Screen) sends it after each hello and whenever it changes. */

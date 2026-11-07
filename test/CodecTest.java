@@ -33,6 +33,25 @@ public class CodecTest {
         int[] screen = new int[Codec.SIZE * Codec.SIZE];
         int[] px = new int[200];
         for (int i = 0; i < 200; i++) px[i] = i % 7 < 3 ? 0xef5d : (i * 977) & 0xffff;
+        int[] flat = new int[64];
+        Arrays.fill(flat, 0xff0ac81e);
+        int[] sm = Codec.smooth(flat, 8);
+        boolean same = sm.length == 32 * 32;
+        for (int v : sm) same &= v == 0xff0ac81e;
+        check(same, "smooth leaves flat colour as it is");
+        int[] stairs = new int[64];
+        Arrays.fill(stairs, 0xff000000);
+        for (int y = 0; y < 8; y++) for (int x = y; x < 8; x++) stairs[y * 8 + x] = 0xffffffff;
+        int[] st = Codec.smooth(stairs, 8);
+        check(st[4 * 32 * 4 + 4 * 4] != 0xff000000 && (st[0] >>> 24) == 0xff, "smooth keeps the picture opaque and softens a diagonal");
+        byte[] info = {(byte) 0xf0, 0x7d, 'F', 'L', 1, 'F', 'E', 'L', 'U', 'C', 'C', 'A', ' ', 'S', 'L', 'O', 'O', 'P', ' ', '2', '.', '8', '.', '4', 0, 6, 40, (byte) 0xf7};
+        check("FELUCCA SLOOP 2.8.4".equals(Codec.firmwareInfo(info)) && Codec.firmwareInfo(Codec.HELLO) == null, "the firmware says its name");
+        check(Codec.firmwareName("FELUCCA SLOOP 2.8.4", "FM-1_928").equals("SLOOP 2.8.4")
+                && Codec.firmwareName("FELUCCA ChoralRoot 0.29", "FM-1_920").equals("ChoralRoot 0.29")
+                && Codec.firmwareName("JIANT v0.9.18", "FM-1_900").equals("JIANT v0.9.18")
+                && Codec.firmwareName("FELUCCA v2.1.1", "FM-1_700").equals("Skiff v2.1.1")
+                && Codec.firmwareName("FELUCCA v1.5", "FM-1_915").equals("Felucca v1.5")
+                && Codec.firmwareName("FELUCCA v1.5", null).equals("Felucca v1.5"), "firmware names past Felucca's USB name");
         check(Codec.apply(screen, encode(200, 30, px)), "row applies");
         check(Arrays.equals(Arrays.copyOfRange(screen, 200 * 240 + 30, 200 * 240 + 230), px) && screen[200 * 240 + 29] == 0, "row round trip");
         check(!Codec.apply(screen, Codec.HELLO) && !Codec.apply(screen, encode(240, 0, new int[] {1, 2, 3})), "ignores other messages");

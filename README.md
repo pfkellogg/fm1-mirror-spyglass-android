@@ -81,6 +81,8 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
     its chord engine from the keyboard), or **as they come**, for a sequencer playing the FM-1's tracks on their
     own channels.
   - Clock goes through too. SysEx never does: that's how the FM-1 is updated.
+- **The title** names the firmware the FM-1 says it runs (**SLOOP 2.8.4**), from 1.4.1. Firmware that doesn't say, like M-VAVE's Open, keeps the usual title.
+- **Hide mirror / Show mirror** hides the FM-1's screen, to keep only the spyglass. **Smooth** (on to begin with) takes the jaggies off the FM-1's text and lines; off shows exactly what the FM-1 sends.
 - **Spyglass:** a round brass eyepiece beside the screen with the note or chord you play
   ("A3 220 Hz", "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
   key. On top of it, the **sound playing** (`T1 FM6 ICE BELL`), when the firmware says it
@@ -104,7 +106,7 @@ from this app's 1.3 or later (an older one sends its screen over USB only; plug 
    **K3 BLE ROLE** on **DEVICE**. It says **WAITING FOR DEVICE**.
 2. Unplug the FM-1's USB cable (or never plug it in). The app says **Waiting for the FM-1…**: tap
    **Find the FM-1 over Bluetooth**, and **Allow** Nearby devices. It finds **FM1 Community_BLE**,
-   connects, and the title says **FM-1 Mirror · Bluetooth**.
+   connects, and the title says **Bluetooth**.
 3. From then on it connects by itself whenever the FM-1 isn't plugged in. Plug it in, and the app moves
    to USB (faster); firmware is only ever installed over USB.
 

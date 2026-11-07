@@ -130,10 +130,10 @@ final class Glass extends FrameLayout {
 
     /** Sizes the staff and the handles to the diameter. */
     private void layoutParts() {
-        int w = Math.round(size * 0.34f), h = Math.round(w * 1.06f);
+        int w = Math.round(size * 0.45f), h = Math.round(w * 1.06f); // the staff is what's read: as big as the glass allows
         FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(w, h, Gravity.TOP | Gravity.START);
         slp.leftMargin = Math.round(size / 2f - w / 2f);
-        slp.topMargin = Math.round(size / 2f + size * 0.11f - h / 2f);
+        slp.topMargin = Math.round(size / 2f + size * 0.087f - h / 2f);
         staff.setLayoutParams(slp);
 
         int c = Math.round(size * 0.12f);
@@ -361,11 +361,16 @@ final class Glass extends FrameLayout {
             detail = String.format(Locale.US, "%s   %.0f Hz", NoteNames.name(n), NoteNames.hz(n));
             if (shownVel > 0) detail += "   vel " + shownVel;
         }
-        label(c, name, cx, cy - d * 0.165f, shownChord != null ? d * 0.19f : d * 0.24f, d * 0.72f, Color.WHITE);
-        label(c, detail, cx, cy + d * 0.325f, Math.max(13 * density, d * 0.065f), d * 0.54f, Color.WHITE);
+        if (shownNotes == null) { // nothing played yet: big, with no staff to make room for
+            label(c, name, cx, cy - d * 0.165f, d * 0.24f, d * 0.72f, Color.WHITE);
+            label(c, detail, cx, cy + d * 0.325f, Math.max(13 * density, d * 0.065f), d * 0.54f, Color.WHITE);
+        } else {
+            label(c, name, cx, cy - d * 0.215f, shownChord != null ? d * 0.10f : d * 0.115f, d * 0.72f, Color.WHITE);
+            label(c, detail, cx, cy + d * 0.365f, Math.max(12 * density, d * 0.055f), d * 0.54f, Color.WHITE);
+        }
         if (shownChord == null && shownVel > 0) {
             // How hard the key was hit: a short brass bar under it, full at 127.
-            float w = d * 0.26f, h = Math.max(3 * density, d * 0.012f), top = cy + d * 0.37f - h / 2;
+            float w = d * 0.26f, h = Math.max(3 * density, d * 0.012f), top = cy + d * 0.405f - h / 2;
             p.setStyle(Paint.Style.FILL);
             p.setColor(BRASS_SHADOW);
             r.set(cx - w / 2, top, cx + w / 2, top + h);
