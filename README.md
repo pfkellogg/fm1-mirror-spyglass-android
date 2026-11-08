@@ -159,6 +159,21 @@ The fifth: **[Melodee + FM-1 Big Screen](https://github.com/pfkellogg/melodee/bl
 
 With Keys on SLOOP, a keyboard plays track 1 only: FM-1 Mirror on a Mac sends it on channel 1, while the FM-1's own keys play the selected track. Tested 2026-11-04: on track 1 both play the same sound. To have the keyboard follow the selected track, SLOOP's manual gives GLO > MIDI 2 > IN = CH 1 (not tested yet). Tested with FM-1 Mirror on a Mac.
 
+### Newer FM-1s (a different flash chip)
+
+FM-1s sold from late 2026 have a different memory chip (UCUN UC25HQ80, ID `0xB36014`; the first ones have a Puya P25Q80,
+`0x856014`). You can't tell them apart by the logo or the colour: [M-Flasher](https://github.com/jvitkauskas/m-flasher) reads the chip and says which one yours has.
+On a newer FM-1:
+
+- **SLOOP + Big Screen** (2.8.5) and **Melodee + Big Screen** (1.6.1) know the new chip: saving works.
+- **ChoralRoot, JIANT FM and Skiff + Big Screen** don't know it yet. They don't damage anything, but they keep your
+  work in memory only: it's gone when you switch off, and installing another firmware from them may fail. Their own
+  authors have fixed it (ChoralRoot 0.32, Skiff 2.2, JIANT in its newest test builds), and these Big Screen builds will
+  follow. Until then, on a newer FM-1, use those firmwares without the big screen, or SLOOP or Melodee with it.
+- If an FM-1 doesn't start after an install, [M-Flasher](https://github.com/jvitkauskas/m-flasher) or M-VAVE's recovery can put a firmware back.
+
+Not yet tested by us on a newer FM-1 (2026-11-08).
+
 ## For the curious
 
 Plain Java, Android's own MIDI, no other libraries.
