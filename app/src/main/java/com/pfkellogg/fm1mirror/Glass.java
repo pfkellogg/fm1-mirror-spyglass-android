@@ -492,7 +492,7 @@ final class Glass extends FrameLayout {
         c.drawText(s, x, y - (m.ascent + m.descent) / 2, text);
     }
 
-    /** A spyglass's eyepiece: dark glass, a glint of light, and a knurled brass rim lit from the top left. */
+    /** A spyglass's eyepiece: dark glass and a knurled brass rim lit from the top left. */
     private void lens(Canvas c, float cx, float cy, float d) {
         float rad = d / 2, rim = Math.max(7 * density, d * 0.05f), gr = rad - rim;
         p.setStyle(Paint.Style.FILL);
@@ -501,13 +501,6 @@ final class Glass extends FrameLayout {
         c.drawCircle(cx, cy, gr, p);
         p.setShader(null);
         p.setStyle(Paint.Style.STROKE);
-        // A glint on the glass, top left.
-        p.setStrokeCap(Paint.Cap.ROUND);
-        p.setStrokeWidth(d * 0.012f);
-        p.setColor(Color.argb(22, 255, 255, 255));
-        ring(cx, cy, gr * 0.94f);
-        c.drawArc(r, 205, 32, false, p);
-        p.setStrokeCap(Paint.Cap.BUTT);
         // The brass rim: bands from dark to light and back, so it looks rounded.
         int[] bands = {BRASS_SHADOW, BRASS_DARK, BRASS, BRASS_LIGHT, BRASS, BRASS_DARK};
         float bw = rim / bands.length;
