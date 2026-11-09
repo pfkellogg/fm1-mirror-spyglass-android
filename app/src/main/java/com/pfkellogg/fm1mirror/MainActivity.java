@@ -78,6 +78,13 @@ public class MainActivity extends Activity {
     private volatile MidiDevice ble; // held open while the FM-1 is used over Bluetooth
     private volatile boolean bleOpening, bleScanning;
     private volatile long bleTriedAt;
+    /** The user disconnected Bluetooth here: don't reconnect until they say so. */
+    private volatile boolean bleOff;
+    /** An FM-1 that Android lists over Bluetooth while this app isn't the one using it (another app has it). */
+    private volatile String bleOther;
+    /** The Bluetooth radio link to the FM-1 is up (not just Android trying to reach it). */
+    private volatile boolean bleLinked;
+    private Button btButton;
 
     private Codec.Look look = Codec.Look.COLOR;
     private boolean confirming, full;
@@ -123,6 +130,10 @@ public class MainActivity extends Activity {
         updateButton = button("Update FM-1", v -> confirmUpdate());
         updateButton.setVisibility(View.GONE);
         bar.addView(updateButton);
+        bleOff = prefs.getBoolean("bleOff", false);
+        btButton = button("BT", v -> manageBle());
+        btButton.setVisibility(View.GONE);
+        bar.addView(btButton);
         try {
             bundled = Codec.buildId(new String(asset("FM1_BIG_SCREEN_V14.build-identity.json")));
         } catch (IOException ignored) {
@@ -195,7 +206,7 @@ public class MainActivity extends Activity {
 
     /** On a thread of its own: opening waits for Android, and the FM-1 stops sending 3 s after the last hello. */
     private void keepLinked() {
-        long lookedAt = 0, helloAt = 0, keysLookedAt = 0;
+        long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0;
         boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true;
         while (running) {
             Fm1Port l = link;
@@ -204,7 +215,22 @@ public class MainActivity extends Activity {
                 l.close();
                 l = null;
             }
+            // Disconnected by the user: let go of the FM-1 over Bluetooth (USB stays).
+            if (bleOff && (ble != null || (l != null && Ble.isBluetooth(l.info)))) {
+                if (l != null && Ble.isBluetooth(l.info)) {
+                    link = null;
+                    l.close();
+                    l = null;
+                }
+                dropBle();
+            }
             long now = System.currentTimeMillis();
+            if (now - otherAt >= 2000) {
+                otherAt = now;
+                bleOther = otherBle(l);
+                bleLinked = (ble != null || (l != null && Ble.isBluetooth(l.info)))
+                        && Ble.linked(this, prefs.getString("bleAddress", ""));
+            }
             // Plugged in while on Bluetooth: USB is much faster, so move over.
             if (l != null && Ble.isBluetooth(l.info) && now - lookedAt >= 2000 && usbFm1()) {
                 lookedAt = now;
@@ -214,7 +240,7 @@ public class MainActivity extends Activity {
                 dropBle();
             }
             // Not plugged in: open the FM-1 found over Bluetooth before (every 10 s while it isn't there).
-            if (l == null && !installing() && ble == null && !bleOpening && now - bleTriedAt >= 10000 && !usbFm1()) {
+            if (l == null && !bleOff && !installing() && ble == null && !bleOpening && now - bleTriedAt >= 10000 && !usbFm1()) {
                 bleTriedAt = now;
                 String address = prefs.getString("bleAddress", "");
                 if (!address.isEmpty() && Ble.allowed(this)) {
@@ -314,6 +340,18 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** The name of an FM-1 Android lists over Bluetooth that this app isn't using, or null. */
+    private String otherBle(Fm1Port l) {
+        MidiDevice mine = ble;
+        for (MidiDeviceInfo i : Fm1Port.candidates(mm, true)) {
+            if (!Ble.isBluetooth(i)) continue;
+            if (l != null && l.info.getId() == i.getId()) continue;
+            if (mine != null && mine.getInfo().getId() == i.getId()) continue;
+            return Fm1Port.name(i);
+        }
+        return null;
+    }
+
     /** An FM-1 on USB right now. */
     private boolean usbFm1() {
         for (MidiDeviceInfo i : Fm1Port.candidates(mm, true)) if (!Ble.isBluetooth(i)) return true;
@@ -334,6 +372,7 @@ public class MainActivity extends Activity {
         List<MidiDeviceInfo> all = Fm1Port.candidates(mm, true);
         all.sort((a, b) -> Integer.compare(rank(a), rank(b)));
         for (MidiDeviceInfo info : all) {
+            if (bleOff && Ble.isBluetooth(info)) continue;
             Fm1Port p = Fm1Port.open(mm, info, this::onMessage, played.fm1);
             if (p != null) return p;
         }
@@ -513,6 +552,15 @@ public class MainActivity extends Activity {
             case "plug":
                 heading("Waiting for the FM-1…");
                 body("Plug it into this phone or tablet with its USB cable (through a USB-C or OTG adapter if the phone needs one), and turn it on.");
+                if (bleOff && !prefs.getString("bleAddress", "").isEmpty()) {
+                    body("Bluetooth is off in this app: you disconnected it, so the FM-1 is free for other devices.");
+                    row(button("Connect over Bluetooth", v -> setBleOff(false)));
+                    break;
+                }
+                if (bleOther != null) {
+                    body("Another app on this tablet has \"" + bleOther + "\" open over Bluetooth. Close that app, or tap BT: busy above.");
+                    break;
+                }
                 body(bleScanning ? "Looking for the FM-1 over Bluetooth…"
                         : prefs.getString("bleAddress", "").isEmpty()
                         ? "Or over Bluetooth: turn on the FM-1's Bluetooth MIDI (on its BLUETOOTH page), then:"
@@ -562,6 +610,21 @@ public class MainActivity extends Activity {
                 step1();
                 break;
             case "unknown":
+                Fm1Port ul = link;
+                if (ul != null && Ble.isBluetooth(ul.info) && !bleLinked) {
+                    heading("Can't reach the FM-1 over Bluetooth");
+                    body("This tablet keeps trying \"" + detail + "\", but the FM-1 doesn't answer the radio, so there's no connection yet.");
+                    body("On the FM-1, hold HOME and press GLO: BLUETOOTH should be ON and BLE ROLE DEVICE, and it should say WAITING FOR DEVICE. If it says it's connected, another phone, tablet or computer has it: disconnect it there. Turning the FM-1 off and on also helps.");
+                    row(button("Stop trying", v -> setBleOff(true)));
+                    break;
+                }
+                if (ul != null && Ble.isBluetooth(ul.info)) {
+                    heading("No answer over Bluetooth yet");
+                    body("Connected to \"" + detail + "\" over Bluetooth, but the FM-1 isn't answering: no screen and no firmware name. Your firmware doesn't need changing for this.");
+                    body("Try: turn the FM-1's Bluetooth off and on (its BLUETOOTH page), close other apps or devices that use it, or plug it in with its USB cable.");
+                    row(button("Disconnect Bluetooth", v -> setBleOff(true)));
+                    break;
+                }
                 heading("No screen from the FM-1 yet");
                 body("Connected to \"" + detail + "\", but it isn't sending its screen and didn't say which firmware it runs. If you're using a community firmware, it's fine to keep it, and nothing needs changing: it just can't show here.");
                 body("Only if you want to see the screen here, or if this FM-1 has M-VAVE's original firmware:");
@@ -611,7 +674,7 @@ public class MainActivity extends Activity {
     /** Why there's no picture, if there isn't one. */
     private String need() {
         Fm1Port l = link;
-        if (l == null) return "plug";
+        if (l == null) return "plug:" + (bleOff ? "off" : "") + (bleOther != null ? "busy" : ""); // the panel redraws when Bluetooth changes
         // The FM-1 only sends what changes, so a still screen is quiet: once it has come, keep it.
         if (screenSince(opened)) return null;
         if (System.currentTimeMillis() - opened < QUIET) return "connecting";
@@ -647,6 +710,76 @@ public class MainActivity extends Activity {
         boolean offer = l != null && !onBle && installer == null && b != null && !bundled.isEmpty() && !b.equals(bundled)
                 && id != null && Codec.isOpenFirmware(id) && screenSince(opened);
         updateButton.setVisibility(offer ? View.VISIBLE : View.GONE);
+        // Bluetooth: in use here, used by another app, or switched off here.
+        String bt = onBle ? (bleLinked ? "BT: on" : "BT: trying") : bleOther != null ? "BT: busy"
+                : bleOff && !prefs.getString("bleAddress", "").isEmpty() ? "BT: off" : null;
+        if (bt != null && !bt.contentEquals(btButton.getText())) btButton.setText(bt);
+        btButton.setVisibility(bt != null ? View.VISIBLE : View.GONE);
+        if (bleLinked != shownLinked) { // the panel says whether the radio link is up
+            shownLinked = bleLinked;
+            shown = "";
+        }
+    }
+
+    private boolean shownLinked;
+
+    /** The Bluetooth connection: what's using the FM-1, and a way to let go of it. */
+    private void manageBle() {
+        Fm1Port l = link;
+        boolean onBle = l != null && Ble.isBluetooth(l.info);
+        String other = bleOther;
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("FM-1 over Bluetooth");
+        if (onBle && !bleLinked) {
+            b.setMessage("This tablet is trying to reach \"" + l.name + "\" over Bluetooth, but the FM-1 doesn't answer the radio, so there's no connection yet."
+                    + "\n\nOn the FM-1, hold HOME and press GLO: BLUETOOTH should be ON and BLE ROLE DEVICE, and it should say WAITING FOR DEVICE. If it says it's connected, another phone, tablet or computer has it.")
+                    .setPositiveButton("Stop trying", (d, w) -> setBleOff(true))
+                    .setNeutralButton("Forget this FM-1", (d, w) -> forgetBle())
+                    .setNegativeButton("Close", null);
+        } else if (onBle) {
+            String state = screenSince(opened) ? "Its screen is showing here."
+                    : "It isn't answering yet (no screen and no firmware name).";
+            b.setMessage("This tablet is connected to \"" + l.name + "\" over Bluetooth. " + state
+                    + "\n\nThe FM-1 takes one Bluetooth connection at a time. Disconnect to free it for another device, such as a phone or a Mac.")
+                    .setPositiveButton("Disconnect", (d, w) -> setBleOff(true))
+                    .setNeutralButton("Forget this FM-1", (d, w) -> forgetBle())
+                    .setNegativeButton("Close", null);
+        } else if (other != null) {
+            b.setMessage("Another app on this tablet has \"" + other + "\" open over Bluetooth, so this app can't use it. Close that app, or disconnect the FM-1 in Bluetooth settings.")
+                    .setPositiveButton("Bluetooth settings", (d, w) -> {
+                        try {
+                            startActivity(new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS));
+                        } catch (RuntimeException ignored) {
+                        }
+                    })
+                    .setNegativeButton("Close", null);
+        } else {
+            b.setMessage("Bluetooth is off in this app: you disconnected it, so it won't reconnect by itself. The FM-1 is free for other devices.")
+                    .setPositiveButton("Connect again", (d, w) -> setBleOff(false))
+                    .setNeutralButton("Forget this FM-1", (d, w) -> forgetBle())
+                    .setNegativeButton("Close", null);
+        }
+        readable(b.create());
+    }
+
+    private void setBleOff(boolean off) {
+        bleOff = off;
+        prefs.edit().putBoolean("bleOff", off).apply();
+        if (!off) bleTriedAt = 0; // connect now
+        shown = "";
+        Toast.makeText(this, off ? "Disconnected from the FM-1 over Bluetooth." : "Connecting over Bluetooth…", Toast.LENGTH_SHORT).show();
+    }
+
+    /** Disconnects and forgets the FM-1's address: Find the FM-1 over Bluetooth starts again. */
+    private void forgetBle() {
+        prefs.edit().remove("bleAddress").putBoolean("bleOff", true).apply();
+        bleOff = true; // the link thread lets go
+        main.postDelayed(() -> {
+            bleOff = false;
+            prefs.edit().putBoolean("bleOff", false).apply();
+            shown = "";
+        }, 1500);
+        shown = "";
+        Toast.makeText(this, "Forgot the FM-1 over Bluetooth.", Toast.LENGTH_SHORT).show();
     }
 
     private void confirmUpdate() {
@@ -691,7 +824,8 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "No FM-1 found over Bluetooth. Is its Bluetooth MIDI on, and is it close by?", Toast.LENGTH_LONG).show();
                 return;
             }
-            prefs.edit().putString("bleAddress", d.getAddress()).apply();
+            prefs.edit().putString("bleAddress", d.getAddress()).putBoolean("bleOff", false).apply();
+            bleOff = false;
             dropBle();
             bleTriedAt = 0; // connect now
             Toast.makeText(this, "Found the FM-1. Connecting…", Toast.LENGTH_SHORT).show();

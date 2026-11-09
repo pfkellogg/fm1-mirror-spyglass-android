@@ -98,6 +98,23 @@ final class Ble {
         }, ms);
     }
 
+    /**
+     * The radio link to `address` is really up. Android opens a Bluetooth MIDI device before it has
+     * reached it, and keeps retrying every 30 s if the FM-1 never answers, so "opened" isn't "connected".
+     */
+    @SuppressWarnings("MissingPermission")
+    static boolean linked(Context ctx, String address) {
+        BluetoothManager bm = ctx.getSystemService(BluetoothManager.class);
+        BluetoothAdapter a = adapter(ctx);
+        if (bm == null || a == null || address.isEmpty() || !allowed(ctx)) return false;
+        try {
+            return bm.getConnectionState(a.getRemoteDevice(address), android.bluetooth.BluetoothProfile.GATT)
+                    == android.bluetooth.BluetoothProfile.STATE_CONNECTED;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     /** Opens the FM-1 at `address` over Bluetooth MIDI; `opened` gets the device, or null. */
     @SuppressWarnings("MissingPermission")
     static void open(Context ctx, MidiManager mm, String address, Consumer<MidiDevice> opened) {

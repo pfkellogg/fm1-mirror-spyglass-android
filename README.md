@@ -115,6 +115,15 @@ The FM-1 takes one Bluetooth connection at a time: close this app before connect
 ([FM-1 Mirror](https://github.com/pfkellogg/fm1-mirror) on a Mac works over Bluetooth too), and the
 other way round.
 
+From 1.4.3 the **BT** button at the top shows the Bluetooth connection: **BT: on** (connected here),
+**BT: trying** (this tablet can't reach the FM-1), **BT: busy** (another app on this tablet has it) or
+**BT: off** (you disconnected it here). Tap it to **Disconnect**, **Connect again** or **Forget this FM-1**.
+
+**BT: trying, and the FM-1's BLUETOOTH page says MIDI READY?** Another device has the FM-1. A TV box,
+phone or computer that once **paired** with it keeps reconnecting in the background, even while its
+Bluetooth menu says "Disconnected". Forget (unpair) **FM1 Community_BLE** on that device: on Google TV,
+**Settings › Remotes & Accessories › FM1 Community_BLE › Forget**.
+
 ## If there's no sound
 
 - **The keyboard's volume slider** (a Keystation has one) sets the FM-1's volume. Slid down, the FM-1
