@@ -43,6 +43,9 @@ final class Inputs {
 
     /** The FM-1 under TO: FM-1 Mirror's own link to it (it has the FM-1 open for its screen). */
     static final String FM1 = "FM-1";
+    /** The piano built into this app (Synth), out of this device's speakers. */
+    static final String PIANO = "Piano (built in)";
+    volatile Synth synth;
     /** Where FM-1 Mirror's link sends (null while there's no FM-1), and the device it has open (skipped here). */
     volatile java.util.function.Consumer<byte[]> fm1Out;
     volatile int fm1Id = -1;
@@ -189,6 +192,7 @@ final class Inputs {
     List<String> tos() {
         List<String> n = new ArrayList<>();
         n.add(FM1);
+        n.add(PIANO);
         for (MidiDeviceInfo i : sorted(false)) if (i.getId() != fm1Id) n.add(name(i));
         return n;
     }
@@ -221,7 +225,7 @@ final class Inputs {
     /** A pair's TO devices whose MIDI in is open now. */
     List<String> playingTo(Route r) {
         List<String> n = new ArrayList<>();
-        for (String t : r.to) if (sinks.containsKey(t) || (t.equals(FM1) && fm1Out != null)) n.add(t);
+        for (String t : r.to) if (sinks.containsKey(t) || (t.equals(FM1) && fm1Out != null) || (t.equals(PIANO) && synth != null)) n.add(t);
         return n;
     }
 
@@ -307,6 +311,11 @@ final class Inputs {
         byte[] one = null;
         for (String t : to) {
             if (t.equals(from)) continue;
+            if (t.equals(PIANO)) {
+                Synth p = synth;
+                if (p != null) p.midi(m);
+                continue;
+            }
             if (t.equals(FM1)) {
                 java.util.function.Consumer<byte[]> out = fm1Out;
                 if (out != null) out.accept(m.clone());   // (FM-1 Mirror puts it on the FM-1's channel)

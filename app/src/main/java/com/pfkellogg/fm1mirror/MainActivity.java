@@ -202,6 +202,7 @@ public class MainActivity extends Activity {
             }, Fm1Port.callbacks());
             inputs = new Inputs(mm, () -> runOnUiThread(this::showPair));
             loadRoutes();
+            pianoIfWanted();
             current = prefs.getInt("current", 0);
         }
     }
@@ -607,7 +608,10 @@ public class MainActivity extends Activity {
         boolean many = inputs.routes.size() > 1;
         boolean fm1 = r == null || r.to.contains(Inputs.FM1) || (inputs.routes.size() == 1 && r.to.isEmpty());
         Played p = in == null ? null : inputs.played(in);
-        glass.showPair(p != null ? p : played, many && in != null ? shortName(in) : null, fm1, many);
+        // The header says whose with several pairs, and "Piano" when the built-in piano plays (not the FM-1).
+        String name = many && in != null ? shortName(in) : null;
+        if (r != null && r.to.contains(Inputs.PIANO) && !r.to.contains(Inputs.FM1)) name = name == null ? "Piano" : name + " \u00b7 Piano";
+        glass.showPair(p != null ? p : played, name, fm1, many);
         glass.setIdle("play a note");
         glass.setAlert(null, null);
     }
@@ -673,7 +677,7 @@ public class MainActivity extends Activity {
             for (String to : tos) {
                 if (to.equals(from)) continue;
                 android.widget.CheckBox t = new android.widget.CheckBox(this);
-                t.setText(to.equals(Inputs.FM1) ? "FM-1 (this app's FM-1)" : to);
+                t.setText(to.equals(Inputs.FM1) ? "FM-1 (this app's FM-1)" : to.equals(Inputs.PIANO) ? "Piano (built in: this device's speakers)" : to);
                 t.setChecked(pair.to.contains(to));
                 LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                 lp.leftMargin = dp(28);
@@ -694,8 +698,21 @@ public class MainActivity extends Activity {
         list.addView(c);
     }
 
+    /** The built-in piano, started the first time a pair plays it. */
+    private void pianoIfWanted() {
+        if (inputs == null || inputs.synth != null) return;
+        for (Inputs.Route r : inputs.routes)
+            if (r.to.contains(Inputs.PIANO)) {
+                Synth s = new Synth();
+                s.start(this);
+                inputs.synth = s;
+                return;
+            }
+    }
+
     private void midiChanged(LinearLayout list) {
         saveRoutes();
+        pianoIfWanted();
         inputs.apply();
         list.post(() -> fillMidi(list));
     }
