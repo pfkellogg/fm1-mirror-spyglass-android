@@ -398,7 +398,7 @@ final class Glass extends FrameLayout {
         } else {
             int n = shownNotes[0];
             name = NoteNames.pitchClass(n);
-            detail = String.format(Locale.US, "%s   %.0f Hz", NoteNames.name(n), NoteNames.hz(n));
+            detail = String.format(Locale.US, "%s   %.1f Hz", NoteNames.name(n), NoteNames.hz(n));
             if (shownVel > 0) detail += "   vel " + shownVel;
         }
         if (shownNotes == null) { // nothing played: the empty staves, and the hint where a note's details go
