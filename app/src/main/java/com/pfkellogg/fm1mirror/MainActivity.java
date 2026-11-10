@@ -1269,7 +1269,15 @@ public class MainActivity extends Activity {
         b.setAllCaps(false);
         b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         b.setTextColor(Color.BLACK);
-        b.setBackgroundColor(0xffffd60a);
+        // Yellow; with the remote's focus on it (a TV): white with a thick blue edge, so you can see where you are.
+        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
+        on.setColor(Color.WHITE);
+        on.setStroke(dp(4), 0xff2f7cf6);
+        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
+        bg.addState(new int[] {android.R.attr.state_focused}, on);
+        bg.addState(new int[] {android.R.attr.state_pressed}, on);
+        bg.addState(new int[] {}, new android.graphics.drawable.ColorDrawable(0xffffd60a));
+        b.setBackground(bg);
         b.setPadding(dp(18), dp(10), dp(18), dp(10));
         b.setOnClickListener(l);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
