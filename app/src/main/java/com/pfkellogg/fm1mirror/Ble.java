@@ -50,7 +50,7 @@ final class Ble {
     }
 
     static boolean isBluetooth(MidiDeviceInfo info) {
-        return info.getType() == MidiDeviceInfo.TYPE_BLUETOOTH;
+        return info != null && info.getType() == MidiDeviceInfo.TYPE_BLUETOOTH;   // (null: straight over USB)
     }
 
     private static boolean looksLikeFm1(String name) {

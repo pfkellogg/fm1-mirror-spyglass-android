@@ -31,11 +31,14 @@ final class Fm1Port implements Closeable {
         return callbacks;
     }
 
+    /** Android's MIDI service's device; null when the FM-1 is opened straight over USB (`usb`). */
     final MidiDeviceInfo info;
     final String name;
     private final MidiDevice device;
     private final MidiInputPort in;
     private final MidiOutputPort out;
+    /** The FM-1 over USB without Android's MIDI service (an onn Google TV box, say): see UsbMidi. */
+    final UsbMidi usb;
 
     private Fm1Port(MidiDeviceInfo info, MidiDevice device, MidiInputPort in, MidiOutputPort out) {
         this.info = info;
@@ -43,6 +46,26 @@ final class Fm1Port implements Closeable {
         this.device = device;
         this.in = in;
         this.out = out;
+        this.usb = null;
+    }
+
+    private Fm1Port(UsbMidi usb) {
+        this.info = null;
+        this.name = usb.name;
+        this.device = null;
+        this.in = null;
+        this.out = null;
+        this.usb = usb;
+    }
+
+    /** Opens the FM-1 straight over USB (permission granted already); null if it can't be had. */
+    static Fm1Port openUsb(android.hardware.usb.UsbManager um, android.hardware.usb.UsbDevice d, Codec.Sysex.Sink sink, Played.Stream notes) {
+        Codec.Sysex sysex = new Codec.Sysex(sink);
+        UsbMidi m = UsbMidi.open(um, d, (data, offset, count) -> {
+            sysex.feed(data, offset, count);
+            if (notes != null) notes.feed(data, offset, count);
+        });
+        return m == null ? null : new Fm1Port(m);
     }
 
     /** Android's name for it: maker and product, e.g. "Jieli Technology USB Composite Device". */
@@ -118,11 +141,13 @@ final class Fm1Port implements Closeable {
     }
 
     synchronized void send(byte[] m) throws IOException {
-        in.send(m, 0, m.length);
+        if (usb != null) usb.send(m);
+        else in.send(m, 0, m.length);
     }
 
     @Override
     public void close() {
+        if (usb != null) usb.close();
         closeQuietly(out);
         closeQuietly(in);
         closeQuietly(device);

@@ -52,6 +52,11 @@ public class MainActivity extends Activity {
     private static final int TEXT = Color.WHITE, DIM = 0xffb0b0b0, BG = Color.BLACK;
 
     private MidiManager mm;
+    /** Straight USB, when Android has no MIDI service (an onn Google TV box): see UsbMidi. */
+    private android.hardware.usb.UsbManager um;
+    /** The keyboard over straight USB, and the USB devices already asked about (when, by device id). */
+    private volatile UsbMidi usbKeys;
+    private final java.util.Map<Integer, Long> usbAsked = new java.util.concurrent.ConcurrentHashMap<>();
     private SharedPreferences prefs;
     private final Handler main = new Handler(Looper.getMainLooper());
 
@@ -104,7 +109,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
-        mm = (MidiManager) getSystemService(Context.MIDI_SERVICE);
+        mm = (MidiManager) getSystemService(Context.MIDI_SERVICE); // (null where Android has no MIDI service)
+        um = (android.hardware.usb.UsbManager) getSystemService(Context.USB_SERVICE);
         prefs = getSharedPreferences("mirror", MODE_PRIVATE);
         try {
             look = Codec.Look.valueOf(prefs.getString("look", "COLOR"));
@@ -172,11 +178,11 @@ public class MainActivity extends Activity {
         setContentView(root);
         if (prefs.getBoolean("glass", false)) setGlass(true);
 
-        mm.registerDeviceCallback(new MidiManager.DeviceCallback() {
+        if (mm != null) mm.registerDeviceCallback(new MidiManager.DeviceCallback() {
             @Override
             public void onDeviceRemoved(MidiDeviceInfo info) {
                 Fm1Port l = link;
-                if (l != null && l.info.getId() == info.getId()) lost = true;
+                if (l != null && l.info != null && l.info.getId() == info.getId()) lost = true;
                 Keys k = keys;
                 if (k != null && k.info.getId() == info.getId()) keysLost = true;
                 MidiDevice b = ble;
@@ -210,6 +216,7 @@ public class MainActivity extends Activity {
         boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true;
         while (running) {
             Fm1Port l = link;
+            if (l != null && l.usb != null && !l.usb.present(um)) lost = true; // (straight USB: unplugged)
             if (l != null && (lost || installing())) {
                 link = null;
                 l.close();
@@ -225,7 +232,7 @@ public class MainActivity extends Activity {
                 dropBle();
             }
             long now = System.currentTimeMillis();
-            if (now - otherAt >= 2000) {
+            if (mm != null && now - otherAt >= 2000) {
                 otherAt = now;
                 bleOther = otherBle(l);
                 bleLinked = (ble != null || (l != null && Ble.isBluetooth(l.info)))
@@ -240,7 +247,7 @@ public class MainActivity extends Activity {
                 dropBle();
             }
             // Not plugged in: open the FM-1 found over Bluetooth before (every 10 s while it isn't there).
-            if (l == null && !bleOff && !installing() && ble == null && !bleOpening && now - bleTriedAt >= 10000 && !usbFm1()) {
+            if (mm != null && l == null && !bleOff && !installing() && ble == null && !bleOpening && now - bleTriedAt >= 10000 && !usbFm1()) {
                 bleTriedAt = now;
                 String address = prefs.getString("bleAddress", "");
                 if (!address.isEmpty() && Ble.allowed(this)) {
@@ -308,12 +315,23 @@ public class MainActivity extends Activity {
                 if (l != null) Keys.silence(l);
                 k = null;
             }
-            if (l != null && k == null && now - keysLookedAt >= 2000) {
+            UsbMidi uk = usbKeys;
+            if (uk != null && (l == null || again || !uk.present(um))) {
+                usbKeys = null;
+                uk.close();
+                if (l != null) Keys.silence(l);
+                uk = null;
+            }
+            if (l != null && k == null && uk == null && now - keysLookedAt >= 2000) {
                 keysLookedAt = now;
-                MidiDeviceInfo want = wantedKeys(l.info);
-                if (want != null) {
-                    keysLost = false;
-                    keys = Keys.open(mm, want, l, keysChannel(), played);
+                if (mm != null) {
+                    MidiDeviceInfo want = wantedKeys(l.info);
+                    if (want != null) {
+                        keysLost = false;
+                        keys = Keys.open(mm, want, l, keysChannel(), played);
+                    }
+                } else {
+                    usbKeys = openUsbKeys(l);
                 }
             }
             sleep(100);
@@ -321,6 +339,9 @@ public class MainActivity extends Activity {
         Keys k = keys;
         keys = null;
         if (k != null) k.close();
+        UsbMidi uk = usbKeys;
+        usbKeys = null;
+        if (uk != null) uk.close();
         Fm1Port l = link;
         link = null;
         if (l != null) l.close();
@@ -369,6 +390,7 @@ public class MainActivity extends Activity {
      * anything else that might be one (a "USB MIDI" name may as well be a keyboard's interface).
      */
     private Fm1Port openFm1() {
+        if (mm == null) return openUsbFm1();
         List<MidiDeviceInfo> all = Fm1Port.candidates(mm, true);
         all.sort((a, b) -> Integer.compare(rank(a), rank(b)));
         for (MidiDeviceInfo info : all) {
@@ -377,6 +399,62 @@ public class MainActivity extends Activity {
             if (p != null) return p;
         }
         return null;
+    }
+
+    // ---- straight over USB, where Android has no MIDI service (an onn Google TV box): see UsbMidi
+
+    /** The FM-1 among the USB MIDI devices, opened straight over USB; asks for USB permission the first time. */
+    private Fm1Port openUsbFm1() {
+        for (android.hardware.usb.UsbDevice d : UsbMidi.devices(um)) {
+            if (!Codec.isFm1(UsbMidi.name(d))) continue;
+            if (!um.hasPermission(d)) {
+                askUsb(d);
+                continue;
+            }
+            Fm1Port p = Fm1Port.openUsb(um, d, this::onMessage, played.fm1);
+            if (p != null) return p;
+        }
+        return null;
+    }
+
+    /** The keyboard over straight USB ("" any, "-" none, else its name), playing the FM-1 through `l` like Keys. */
+    private UsbMidi openUsbKeys(Fm1Port l) {
+        String from = prefs.getString("keys", "");
+        if (from.equals("-")) return null;
+        for (android.hardware.usb.UsbDevice d : UsbMidi.devices(um)) {
+            if (l.usb != null && d.getDeviceId() == l.usb.device.getDeviceId()) continue;
+            String n = UsbMidi.name(d);
+            if (from.isEmpty() ? Codec.isFm1(n) && !n.toLowerCase().contains("key") : !n.equals(from)) continue;
+            if (!um.hasPermission(d)) {
+                askUsb(d);
+                continue;
+            }
+            int channel = keysChannel();
+            Keys.Filter filter = new Keys.Filter();
+            UsbMidi m = UsbMidi.open(um, d, (data, offset, count) -> {
+                byte[] pass = filter.pass(data, offset, count, channel);
+                if (pass.length == 0) return;
+                played.keys.feed(pass, 0, pass.length);
+                try {
+                    l.send(pass);
+                } catch (IOException ignored) {
+                    // the FM-1 went: the link notices
+                }
+            });
+            if (m != null) return m;
+        }
+        return null;
+    }
+
+    /** Asks Android for permission to use a USB device (a dialog, answered with the remote); again after 15 s. */
+    private void askUsb(android.hardware.usb.UsbDevice d) {
+        long now = System.currentTimeMillis();
+        Long at = usbAsked.get(d.getDeviceId());
+        if (at != null && now - at < 15000) return;
+        usbAsked.put(d.getDeviceId(), now);
+        android.content.Intent i = new android.content.Intent("com.pfkellogg.fm1mirror.USB_PERMISSION").setPackage(getPackageName());
+        android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(this, d.getDeviceId(), i, android.app.PendingIntent.FLAG_MUTABLE);
+        runOnUiThread(() -> um.requestPermission(d, pi));
     }
 
     /** USB before Bluetooth; by name within each. */
@@ -398,7 +476,12 @@ public class MainActivity extends Activity {
     private void pickKeys() {
         Fm1Port l = link;
         List<String> names = new ArrayList<>();
-        for (MidiDeviceInfo i : Keys.sources(mm, l == null ? null : l.info)) names.add(Fm1Port.name(i));
+        if (mm != null) {
+            for (MidiDeviceInfo i : Keys.sources(mm, l == null ? null : l.info)) names.add(Fm1Port.name(i));
+        } else {
+            for (android.hardware.usb.UsbDevice d : UsbMidi.devices(um))
+                if (l == null || l.usb == null || d.getDeviceId() != l.usb.device.getDeviceId()) names.add(UsbMidi.name(d));
+        }
         List<String> items = new ArrayList<>();
         items.add("Any keyboard plugged in");
         items.addAll(names);
@@ -471,8 +554,9 @@ public class MainActivity extends Activity {
     /** The Keys button says what's playing the FM-1 now. */
     private void showKeys() {
         Keys k = keys;
+        UsbMidi uk = usbKeys;
         String from = prefs.getString("keys", "");
-        String s = k != null ? "Keys: " + shortName(k.info) : from.equals("-") ? "Keys: none" : "Keys…";
+        String s = k != null ? "Keys: " + shortName(k.info) : uk != null ? "Keys: " + uk.name : from.equals("-") ? "Keys: none" : "Keys…";
         if (!s.contentEquals(keysButton.getText())) keysButton.setText(s);
     }
 
@@ -551,6 +635,12 @@ public class MainActivity extends Activity {
         switch (parts[0]) {
             case "plug":
                 heading("Waiting for the FM-1…");
+                if (mm == null) {
+                    // No MIDI service (a Google TV box): straight over USB only, through a powered OTG hub.
+                    body("Plug the FM-1 into this box's USB port through a powered USB OTG hub (the hub powers the box too), and turn it on.");
+                    body("The first time, the TV asks whether this app may use the FM-1: choose OK with the remote.");
+                    break;
+                }
                 body("Plug it into this phone or tablet with its USB cable (through a USB-C or OTG adapter if the phone needs one), and turn it on.");
                 if (bleOff && !prefs.getString("bleAddress", "").isEmpty()) {
                     body("Bluetooth is off in this app: you disconnected it, so the FM-1 is free for other devices.");
@@ -849,6 +939,10 @@ public class MainActivity extends Activity {
             pkg = asset("FM1_BIG_SCREEN_V14.fwsc");
             id = asset("FM1_BIG_SCREEN_V14.build-identity.json");
         } catch (IOException e) {
+            return;
+        }
+        if (mm == null) {
+            android.widget.Toast.makeText(this, "Installing firmware needs a tablet, phone or computer with USB MIDI.", android.widget.Toast.LENGTH_LONG).show();
             return;
         }
         Installer ins = new Installer(mm, pkg, new String(id));

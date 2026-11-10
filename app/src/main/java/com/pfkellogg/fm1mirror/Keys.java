@@ -90,6 +90,30 @@ final class Keys implements Closeable {
         return new Keys(info, device, out);
     }
 
+    /**
+     * What goes on to the FM-1 from a keyboard, for the straight-USB path (MainActivity.openUsbKeys): as Keys does
+     * it, everything but SysEx, clock included, channel messages moved to `channel` (1-16; 0 as they come).
+     */
+    static final class Filter {
+        private boolean sysex;
+
+        byte[] pass(byte[] data, int offset, int count, int channel) {
+            byte[] pass = new byte[count];
+            int n = 0;
+            for (int i = offset; i < offset + count; i++) {
+                int b = data[i] & 0xff;
+                if (b == 0xf0) sysex = true;
+                else if (b == 0xf7) sysex = false;
+                else if (b >= 0xf8) pass[n++] = data[i];
+                else if (!sysex || b >= 0x80) {
+                    sysex = false;
+                    pass[n++] = channel > 0 && b >= 0x80 && b < 0xf0 ? (byte) ((b & 0xf0) | (channel - 1)) : data[i];
+                }
+            }
+            return Arrays.copyOf(pass, n);
+        }
+    }
+
     /** All notes off on every channel, so nothing hangs when the keyboard goes mid-note. */
     static void silence(Fm1Port fm1) {
         try {

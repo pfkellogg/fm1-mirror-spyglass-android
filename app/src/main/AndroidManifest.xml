@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-feature android:name="android.software.midi" android:required="true" />
+    <!-- Not required: without Android's MIDI service (an onn Google TV box), the FM-1 is opened straight over USB (UsbMidi.java). -->
+    <uses-feature android:name="android.software.midi" android:required="false" />
     <!-- The FM-1's sound over USB, for the spyglass's waveform (Scope.java). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <!-- The FM-1 over Bluetooth MIDI (Ble.java): finding it and connecting. -->
@@ -17,6 +20,7 @@
     <application
         android:label="FM-1 Mirror + Spyglass"
         android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
         <activity
             android:name=".MainActivity"
@@ -26,6 +30,8 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <!-- (on a Google TV box: its home screen, with the banner) -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
     </application>
