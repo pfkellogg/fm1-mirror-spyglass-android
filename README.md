@@ -19,7 +19,7 @@ Questions, or something not working? Write to me: **pfkellogg@gmail.com**
 ## Download
 
 [**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk)
-(Android 11 or newer)
+(Android 7.1 or newer: tablets, phones, and from 1.5.0 a **Fire TV Stick 4K**, see [On a TV](#on-a-tv-fire-tv-stick-4k))
 
 Open the link on the tablet or phone and tap the file when it has downloaded. It isn't from Google
 Play, so Android asks first: allow your browser to **install unknown apps**, then tap **Install**.
@@ -74,11 +74,20 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   the little one. **Full screen** (tap the screen to come back), and **Color** for other looks: Bright
   color (lifts dark colours like purple so they can be read), Yellow on black, White on black, Black on
   white.
-- **Keys:** the keyboard plugged in plays the FM-1 through the app. It's picked by itself; tap
-  **Keys** to choose another device (a sequencer, a MIDI interface, or another app's MIDI device such
-  as Synth Spyglass's "Mac (Wi-Fi)", for a computer's keyboard over Wi-Fi) or **None**.
-  - Everything is moved to **channel 1** by default, where the FM-1 listens: a keyboard knocked onto another
-    channel (a Keystation came set to 13) would be silent otherwise. **Keys › Channel** picks another (1 to 16:
+- **MIDI** (called **Keys** before 1.5.0): the keyboard plugged in plays the FM-1 through the app. From 1.5.0
+  it works like [MIDI Spyglass](https://github.com/pfkellogg/midi-spyglass): tap **MIDI** (or the spyglass's
+  dial) for the connections, in pairs. Tick a keyboard (FROM), and under it what it plays (TO):
+  - **FM-1**: this app's FM-1 (ticked for a new keyboard; your old Keys choice becomes the first pair).
+  - **Piano (built in)**, from 1.5.1: a grand piano inside the app (the Salamander Grand Piano), out of the
+    tablet's or TV's speakers. It follows how hard you play and the sustain pedal. For when there's no FM-1,
+    or to play both.
+  - Other MIDI devices and apps, such as Synth Spyglass's "Mac (Wi-Fi)".
+  - Several keyboards can each have a pair; ◀ ▶ on the dial (or the remote) shows the next in the spyglass.
+  - **The show goes on:** a keyboard plays and shows in the spyglass with or without an FM-1, and anything
+    plugged in (the FM-1, a keyboard) is picked up the moment it arrives. There's no "Waiting" screen over
+    the spyglass.
+  - Everything to the FM-1 is moved to **channel 1** by default, where the FM-1 listens: a keyboard knocked onto another
+    channel (a Keystation came set to 13) would be silent otherwise. **Channel to the FM-1** in the MIDI menu picks another (1 to 16:
     e.g. 3 for [ChoralRoot's MIDI Keys](https://github.com/pfkellogg/ChoralRootFM1/blob/big-screen/BIG_SCREEN.md#playing-it-from-a-usb-keyboard),
     its chord engine from the keyboard), or **as they come**, for a sequencer playing the FM-1's tracks on their
     own channels.
@@ -86,7 +95,7 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
 - **The title** names the firmware the FM-1 says it runs (**SLOOP 2.8.4**), from 1.4.1. Firmware that doesn't say, like M-VAVE's Open, keeps the usual title.
 - **Hide mirror / Show mirror** hides the FM-1's screen, to keep only the spyglass. **Smooth** (on to begin with) takes the jaggies off the FM-1's text and lines; off shows exactly what the FM-1 sends.
 - **Spyglass:** a round brass eyepiece beside the screen with the note or chord you play
-  ("A3 220 Hz", "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
+  ("A3 220.0 Hz", the pitch to one decimal from 1.5.0, "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
   key. On top of it, the **sound playing** (`T1 FM6 ICE BELL`), when the firmware says it
   (since 1.4.0: [JIANT FM + Big Screen](https://github.com/pfkellogg/JIANT/blob/big-screen/BIG_SCREEN.md) does,
   others don't yet, and then there's nothing on top). Drag it to move it; pinch it, or tap it and drag the grip on its rim, to resize it; tap it and
@@ -99,6 +108,25 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   (over USB only; about 2 minutes, your sounds and projects stay).
 - Playing works while the app is on screen: switched to another app, it lets go of the FM-1.
 
+## On a TV (Fire TV Stick 4K)
+
+From 1.5.0 the app runs on a **Fire TV Stick 4K** (Fire OS 6, Android 7.1), and shows the FM-1's screen and
+the spyglass on the TV. Tested 2026-11-10 with SLOOP + Big Screen and an Arturia MiniLab 3.
+
+- **Plugging in:** a **powered OTG hub** in the Fire TV Stick's micro-USB port, with the FM-1 and the
+  keyboard in the hub. The hub powers the stick, so its power adapter must be on. If nothing shows after the
+  stick restarts, unplug the hub's cable from the stick and plug it back in.
+- **Installing:** sideload the APK (for example with the Downloader app, or `adb install`). It shows under
+  **App Library › Installed on this TV**.
+- **The remote:** **Up** goes to the buttons at the top (the one you're on turns white with a blue edge, from
+  1.5.2), **◀ ▶** moves between them, **OK** presses one, **Down** goes back to the spyglass. On the
+  spyglass, **OK** opens the MIDI connections and **◀ ▶** shows the next pair.
+- The edges keep clear of the TV's overscan, so the buttons and the bottom of the screen aren't cut off.
+- **No FM-1 with you?** Tick **Piano (built in)** under the keyboard: it plays out of the TV.
+- Some TV boxes (an onn Google TV box) have no Android MIDI service: there the app talks to USB MIDI
+  directly, for the FM-1 and one keyboard (`UsbMidi.java`). The onn tested couldn't be a USB host at all,
+  though.
+
 ## Over Bluetooth
 
 No cable to the FM-1: it can sit across the room on its battery. It needs the Big Screen firmware
@@ -107,7 +135,7 @@ from this app's 1.3 or later (an older one sends its screen over USB only; plug 
 
 1. On the FM-1, hold **HOME** and press **GLO**: the **BLUETOOTH** page. **K1 BLUETOOTH** on **ON**,
    **K3 BLE ROLE** on **DEVICE**. It says **WAITING FOR DEVICE**.
-2. Unplug the FM-1's USB cable (or never plug it in). The app says **Waiting for the FM-1…**: tap
+2. Unplug the FM-1's USB cable (or never plug it in). The app says **No FM-1 yet** (with the spyglass off): tap
    **Find the FM-1 over Bluetooth**, and **Allow** Nearby devices. It finds **FM1 Community_BLE**,
    connects, and the title says **Bluetooth**.
 3. From then on it connects by itself whenever the FM-1 isn't plugged in. Plug it in, and the app moves
@@ -132,7 +160,8 @@ Bluetooth menu says "Disconnected". Forget (unpair) **FM1 Community_BLE** on tha
   plays silently; turning the FM-1's preset knob loads the preset's own volume, which is why that seems
   to fix it. Keep the slider up.
 - **Close Synth Spyglass and MIDI Bridge.** If one of them is on, it holds the FM-1 and this app shows
-  "Waiting for the FM-1…".
+  "No FM-1 yet".
+- **Nothing ticked under TO?** Tap **MIDI** and tick **FM-1** (or **Piano (built in)**) under your keyboard.
 - **The FM-1's volume and headphone cable**, as always.
 
 ## Build it yourself
@@ -197,9 +226,10 @@ Plain Java, Android's own MIDI, no other libraries.
   also sends the sound playing, `F0 7D 'F' 'S' 02 <name> F7` (ASCII), after each hello and when it changes.
   Also M-VAVE's updater messages.
 - `Installer.java`: the Big Screen installer, a port of M-VAVE's own web updater.
-- `Keys.java`: the keyboard, passed on to the FM-1. `Played.java`: what's played (the keyboard and the
-  FM-1's own keys), for the spyglass. `Ble.java`: the FM-1 over Bluetooth MIDI.
-- `Glass.java`: the spyglass. `StaffView.java`, `Chord.java`, `NoteNames.java`: the staff, the chord
+- `Inputs.java`: the MIDI connections in pairs (from MIDI Spyglass), with "FM-1" meaning this app's own
+  link. `Synth.java`: the built-in piano. `UsbMidi.java`: USB MIDI without Android's MIDI service.
+  `Played.java`: what's played, for the spyglass. `Ble.java`: the FM-1 over Bluetooth MIDI.
+- `Glass.java`, `Gm.java`: the spyglass, from MIDI Spyglass. `StaffView.java`, `Chord.java`, `NoteNames.java`: the staff, the chord
   names and note names, from Synth Spyglass for Android.
 - `firmware/`: the Big Screen firmware package the app installs, built from
   [pfkellogg/fm1_open, branch `screen-out`](https://github.com/pfkellogg/fm1_open/tree/screen-out).
@@ -208,4 +238,4 @@ Plain Java, Android's own MIDI, no other libraries.
 ## License
 
 GPL-3.0 (see LICENSE), like M-VAVE's FM1 Open application code it builds on. © 2026 Patrick F.
-Kellogg. M-VAVE and FM-1 are M-VAVE's names; this app isn't an M-VAVE product.
+Kellogg. The built-in piano's samples: the Salamander Grand Piano by Alexander Holm, CC BY 3.0. M-VAVE and FM-1 are M-VAVE's names; this app isn't an M-VAVE product.
