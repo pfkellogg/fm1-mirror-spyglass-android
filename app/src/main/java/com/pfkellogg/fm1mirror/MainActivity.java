@@ -1000,6 +1000,13 @@ public class MainActivity extends Activity {
     private void setFull(boolean on) {
         full = on;
         bar.setVisibility(on ? View.GONE : View.VISIBLE);
+        if (android.os.Build.VERSION.SDK_INT < 30) {
+            // (Android 10 and older, e.g. a Fire TV Stick on Fire OS 6: the older flags)
+            getWindow().getDecorView().setSystemUiVisibility(on
+                    ? View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    : View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            return;
+        }
         WindowInsetsController c = getWindow().getInsetsController();
         if (c != null) {
             if (on) {

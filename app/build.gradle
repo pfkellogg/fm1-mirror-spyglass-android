@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.pfkellogg.fm1mirror"
-        minSdk 30 // WindowInsetsController for full screen
+        minSdk 25 // Fire TV Stick 4K (Fire OS 6 = Android 7.1); newer calls are guarded by SDK_INT
         targetSdk 34
         versionCode 9
         versionName "1.4.3"
