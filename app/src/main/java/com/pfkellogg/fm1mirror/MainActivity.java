@@ -74,9 +74,13 @@ public class MainActivity extends Activity {
     private volatile long opened;
     private volatile boolean lost, running;
     private volatile Installer installer;
-    private volatile Keys keys;
-    private volatile boolean keysLost, keysChanged;
+    private volatile boolean keysChanged;
     private final Played played = new Played();
+    /** The MIDI connections, in pairs as in MIDI Spyglass (null without Android's MIDI service), and the pair shown. */
+    private Inputs inputs;
+    private int current;
+    /** Something was plugged in: look for the FM-1 at once. */
+    private volatile boolean rescan;
     private Glass glass;
     private volatile String build; // the Big Screen build the FM-1 runs (its updater's answer)
     private String bundled = "";   // the build this app installs
@@ -146,7 +150,7 @@ public class MainActivity extends Activity {
         }
         mirrorOn = prefs.getBoolean("mirror", true);
         smoothOn = prefs.getBoolean("smooth", true);
-        keysButton = button("Keys", v -> pickKeys());
+        keysButton = button("MIDI", v -> chooseMidi());
         bar.addView(keysButton);
         mirrorButton = button("", v -> setMirror(!mirrorOn));
         bar.addView(mirrorButton);
@@ -175,26 +179,38 @@ public class MainActivity extends Activity {
         panelScroll.addView(panel);
         stage.addView(panelScroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(stage, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        // A TV crops the picture's edges (overscan): keep the FM-1's screen, and its bottom row, inside the safe area.
+        if (getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK))
+            root.setPadding(dp(24), dp(12), dp(24), dp(40));
         setContentView(root);
         if (prefs.getBoolean("glass", false)) setGlass(true);
 
-        if (mm != null) mm.registerDeviceCallback(new MidiManager.DeviceCallback() {
-            @Override
-            public void onDeviceRemoved(MidiDeviceInfo info) {
-                Fm1Port l = link;
-                if (l != null && l.info != null && l.info.getId() == info.getId()) lost = true;
-                Keys k = keys;
-                if (k != null && k.info.getId() == info.getId()) keysLost = true;
-                MidiDevice b = ble;
-                if (b != null && b.getInfo().getId() == info.getId()) dropBle();
-            }
-        }, Fm1Port.callbacks());
+        if (mm != null) {
+            mm.registerDeviceCallback(new MidiManager.DeviceCallback() {
+                @Override
+                public void onDeviceAdded(MidiDeviceInfo info) {
+                    rescan = true; // (the FM-1 at once, not at the next look)
+                }
+
+                @Override
+                public void onDeviceRemoved(MidiDeviceInfo info) {
+                    Fm1Port l = link;
+                    if (l != null && l.info != null && l.info.getId() == info.getId()) lost = true;
+                    MidiDevice b = ble;
+                    if (b != null && b.getInfo().getId() == info.getId()) dropBle();
+                }
+            }, Fm1Port.callbacks());
+            inputs = new Inputs(mm, () -> runOnUiThread(this::showPair));
+            loadRoutes();
+            current = prefs.getInt("current", 0);
+        }
     }
 
     @Override
     protected void onStart() {
         super.onStart();
         running = true;
+        if (inputs != null) inputs.start(); // the keyboards, FM-1 or not: the show goes on
         Thread t = new Thread(this::keepLinked, "FM-1 link");
         t.setDaemon(true);
         t.start();
@@ -206,6 +222,7 @@ public class MainActivity extends Activity {
         super.onStop();
         running = false; // the link thread lets go of the FM-1
         main.removeCallbacks(tick);
+        if (inputs != null) inputs.stop();
     }
 
     // ---- the link: open the FM-1, keep saying hello, ask what it is
@@ -214,7 +231,12 @@ public class MainActivity extends Activity {
     private void keepLinked() {
         long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0;
         boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true;
+        Fm1Port told = null;
         while (running) {
+            if (rescan) {
+                rescan = false;
+                lookedAt = 0;
+            }
             Fm1Port l = link;
             if (l != null && l.usb != null && !l.usb.present(um)) lost = true; // (straight USB: unplugged)
             if (l != null && (lost || installing())) {
@@ -302,18 +324,19 @@ public class MainActivity extends Activity {
                     lost = true;
                 }
             }
-            // The keyboard: only while the FM-1 is here to play.
-            Keys k = keys;
+            // The pairs (Inputs) hear about the FM-1 coming and going: "FM-1" under TO plays it through this link.
+            if (l != told) {
+                told = l;
+                final Fm1Port now1 = l;
+                main.post(() -> {
+                    if (inputs != null) inputs.setFm1(now1 == null || now1.info == null ? -1 : now1.info.getId(), now1 == null ? null : this::toFm1);
+                });
+            }
+            // Without Android's MIDI service (a Google TV box): the keyboard straight over USB, while the FM-1 is here.
             boolean again = keysChanged;
             if (again) {
                 keysChanged = false;
                 keysLookedAt = 0;
-            }
-            if (k != null && (l == null || keysLost || again)) {
-                keys = null;
-                k.close();
-                if (l != null) Keys.silence(l);
-                k = null;
             }
             UsbMidi uk = usbKeys;
             if (uk != null && (l == null || again || !uk.present(um))) {
@@ -322,23 +345,12 @@ public class MainActivity extends Activity {
                 if (l != null) Keys.silence(l);
                 uk = null;
             }
-            if (l != null && k == null && uk == null && now - keysLookedAt >= 2000) {
+            if (mm == null && l != null && uk == null && now - keysLookedAt >= 2000) {
                 keysLookedAt = now;
-                if (mm != null) {
-                    MidiDeviceInfo want = wantedKeys(l.info);
-                    if (want != null) {
-                        keysLost = false;
-                        keys = Keys.open(mm, want, l, keysChannel(), played);
-                    }
-                } else {
-                    usbKeys = openUsbKeys(l);
-                }
+                usbKeys = openUsbKeys(l);
             }
             sleep(100);
         }
-        Keys k = keys;
-        keys = null;
-        if (k != null) k.close();
         UsbMidi uk = usbKeys;
         usbKeys = null;
         if (uk != null) uk.close();
@@ -502,6 +514,192 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    // ---- the MIDI connections, in pairs (as MIDI Spyglass): a keyboard (FROM) and what it plays (TO, the FM-1 first)
+
+    /** The MIDI button and a tap on the spyglass (on a TV: OK): the connections; without a MIDI service, the keyboard. */
+    private void chooseMidi() {
+        if (inputs == null) pickKeys();
+        else chooseInputs();
+    }
+
+    /** What "FM-1" under TO plays: on the channel set here (1 by default, where the FM-1 listens). */
+    private void toFm1(byte[] m) {
+        Fm1Port l = link;
+        if (l == null) return;
+        int ch = keysChannel();
+        for (int i = 0; i < m.length; i++) {
+            int b = m[i] & 0xff;
+            if (ch > 0 && b >= 0x80 && b < 0xf0) m[i] = (byte) ((b & 0xf0) | (ch - 1));
+        }
+        try {
+            l.send(m);
+        } catch (IOException e) {
+            lost = true;
+        }
+    }
+
+    private void loadRoutes() {
+        inputs.routes.clear();
+        try {
+            org.json.JSONArray a = new org.json.JSONArray(prefs.getString("routes", "[]"));
+            for (int i = 0; i < a.length(); i++) {
+                org.json.JSONObject o = a.getJSONObject(i);
+                Inputs.Route r = new Inputs.Route();
+                r.from = o.optString("from", "");
+                org.json.JSONArray to = o.optJSONArray("to");
+                if (to != null) for (int k = 0; k < to.length(); k++) r.to.add(to.getString(k));
+                inputs.routes.add(r);
+            }
+        } catch (org.json.JSONException ignored) {
+        }
+        if (!prefs.contains("routes")) {
+            // (from Keys: its keyboard, "" any, playing the FM-1; "-" none)
+            String from = prefs.getString("keys", "");
+            if (!from.equals("-")) {
+                Inputs.Route r = new Inputs.Route();
+                r.from = from;
+                r.to.add(Inputs.FM1);
+                inputs.routes.add(r);
+            }
+        }
+    }
+
+    private void saveRoutes() {
+        org.json.JSONArray a = new org.json.JSONArray();
+        for (Inputs.Route r : inputs.routes) {
+            org.json.JSONObject o = new org.json.JSONObject();
+            try {
+                o.put("from", r.from);
+                o.put("to", new org.json.JSONArray(r.to));
+            } catch (org.json.JSONException ignored) {
+            }
+            a.put(o);
+        }
+        prefs.edit().putString("routes", a.toString()).putInt("current", current).apply();
+    }
+
+    private Inputs.Route route() {
+        if (inputs == null || inputs.routes.isEmpty()) return null;
+        if (current >= inputs.routes.size()) current = 0;
+        return inputs.routes.get(current);
+    }
+
+    private void nextPair() {
+        if (inputs == null || inputs.routes.size() < 2) return;
+        current = (current + 1) % inputs.routes.size();
+        saveRoutes();
+        showPair();
+    }
+
+    /**
+     * The spyglass shows the pair: its keyboard's notes, in the header its name (with several pairs) and what it plays.
+     * No keyboard yet: the FM-1's own keys. Never a "waiting": what isn't there is simply left out.
+     */
+    private void showPair() {
+        showKeys();
+        if (glass == null) return;
+        if (inputs == null) {
+            glass.showPair(played, null, true, false);
+            return;
+        }
+        Inputs.Route r = route();
+        String in = r == null ? null : inputs.inputOf(r);
+        boolean many = inputs.routes.size() > 1;
+        boolean fm1 = r == null || r.to.contains(Inputs.FM1) || (inputs.routes.size() == 1 && r.to.isEmpty());
+        Played p = in == null ? null : inputs.played(in);
+        glass.showPair(p != null ? p : played, many && in != null ? shortName(in) : null, fm1, many);
+        glass.setIdle("play a note");
+        glass.setAlert(null, null);
+    }
+
+    /** "Keystation 49 MK3 (USB)" is "Keystation 49 MK3". */
+    private static String shortName(String n) {
+        int i = n.indexOf(" (");
+        return i > 0 ? n.substring(0, i) : n;
+    }
+
+    /** The connections: each keyboard (FROM) with a tick box; ticked, the devices it plays (TO) under it. */
+    private void chooseInputs() {
+        List<String> froms = inputs.froms();
+        for (Inputs.Route r : inputs.routes) if (r.from.isEmpty() && !froms.isEmpty()) r.from = froms.get(0);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(20), dp(10), dp(20), 0);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(list);
+        fillMidi(list);
+        AlertDialog.Builder b = new AlertDialog.Builder(this)
+                .setTitle("MIDI: keyboards, each with what it plays")
+                .setView(scroll)
+                .setPositiveButton("Done", null);
+        if (glass != null) {
+            b.setNeutralButton(glass.wave() ? "Hide waveform" : "Show waveform", (d, w) -> glass.setWave(!glass.wave()));
+            b.setNegativeButton(glass.soundOn() ? "Hide sound name" : "Show sound name", (d, w) -> glass.setSoundOn(!glass.soundOn()));
+        }
+        b.show();
+    }
+
+    private void fillMidi(LinearLayout list) {
+        list.removeAllViews();
+        List<String> froms = inputs.froms(), tos = inputs.tos();
+        if (froms.isEmpty()) {
+            TextView t = new TextView(this);
+            t.setText("No MIDI keyboards right now. Plug one in, or pair a Bluetooth MIDI one in Android's settings: it shows here at once.");
+            list.addView(t);
+        }
+        for (String from : froms) {
+            Inputs.Route found = null;
+            for (Inputs.Route r : inputs.routes) if (r.from.equals(from)) found = r;
+            final Inputs.Route pair = found;
+            android.widget.CheckBox f = new android.widget.CheckBox(this);
+            f.setText(from);
+            f.setTextSize(17);
+            f.setChecked(pair != null);
+            f.setOnCheckedChangeListener((x, on) -> {
+                if (on) {
+                    Inputs.Route r = new Inputs.Route();
+                    r.from = from;
+                    r.to.add(Inputs.FM1); // (playing the FM-1 is what this app is for)
+                    inputs.routes.add(r);
+                    current = inputs.routes.size() - 1;
+                } else {
+                    inputs.routes.remove(pair);
+                    if (current >= inputs.routes.size()) current = Math.max(0, inputs.routes.size() - 1);
+                }
+                midiChanged(list);
+            });
+            list.addView(f);
+            if (pair == null) continue;
+            for (String to : tos) {
+                if (to.equals(from)) continue;
+                android.widget.CheckBox t = new android.widget.CheckBox(this);
+                t.setText(to.equals(Inputs.FM1) ? "FM-1 (this app's FM-1)" : to);
+                t.setChecked(pair.to.contains(to));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                lp.leftMargin = dp(28);
+                t.setLayoutParams(lp);
+                t.setOnCheckedChangeListener((x, on) -> {
+                    if (on) pair.to.add(to);
+                    else pair.to.remove(to);
+                    midiChanged(list);
+                });
+                list.addView(t);
+            }
+        }
+        int ch = keysChannel();
+        TextView c = text("Channel to the FM-1: " + (ch == 0 ? "as they come" : String.valueOf(ch)) + "  (change)", 15, TEXT);
+        c.setPadding(0, dp(12), 0, dp(8));
+        c.setFocusable(true);
+        c.setOnClickListener(v -> pickChannel());
+        list.addView(c);
+    }
+
+    private void midiChanged(LinearLayout list) {
+        saveRoutes();
+        inputs.apply();
+        list.post(() -> fillMidi(list));
+    }
+
     /** The channel Keys sends on: 1 to 16, or 0 for as they come (an older "everything to channel 1" switch carries over). */
     private int keysChannel() {
         return prefs.getInt("keysChannel", prefs.getBoolean("keysToOne", true) ? 1 : 0);
@@ -525,10 +723,7 @@ public class MainActivity extends Activity {
     /** The sound playing (null: not known), shown on top of the spyglass. */
     private void setSound(String name) {
         if (java.util.Objects.equals(name, sound)) return;
-        sound = name;
-        runOnUiThread(() -> {
-            if (glass != null) glass.setSound(name);
-        });
+        sound = name; // (the spyglass reads it)
     }
 
     /** The spyglass on or off; it stays as it was next time. */
@@ -539,9 +734,10 @@ public class MainActivity extends Activity {
             // The FM-1's sound for the spyglass's waveform: Android calls any audio input the microphone.
             if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
                 requestPermissions(new String[] {android.Manifest.permission.RECORD_AUDIO}, 8);
-            glass = new Glass(this, played, prefs, () -> setGlass(false));
-            glass.setSound(sound);
+            glass = new Glass(this, prefs, this::chooseMidi, this::nextPair, () -> sound);
             stage.addView(glass);
+            glass.setFocusable(true); // (a TV: the remote reaches it; OK opens the MIDI connections)
+            showPair();
             stage.post(() -> {
                 if (glass != null) glass.place(stage.getWidth(), stage.getHeight());
             });
@@ -553,17 +749,19 @@ public class MainActivity extends Activity {
 
     /** The Keys button says what's playing the FM-1 now. */
     private void showKeys() {
-        Keys k = keys;
-        UsbMidi uk = usbKeys;
-        String from = prefs.getString("keys", "");
-        String s = k != null ? "Keys: " + shortName(k.info) : uk != null ? "Keys: " + uk.name : from.equals("-") ? "Keys: none" : "Keys…";
+        String s;
+        if (inputs != null) {
+            Inputs.Route r = route();
+            String in = r == null ? null : inputs.inputOf(r);
+            s = in != null ? "MIDI: " + shortName(in) : "MIDI…";
+        } else {
+            UsbMidi uk = usbKeys;
+            String from = prefs.getString("keys", "");
+            s = uk != null ? "Keys: " + uk.name : from.equals("-") ? "Keys: none" : "Keys…";
+        }
         if (!s.contentEquals(keysButton.getText())) keysButton.setText(s);
     }
 
-    private static String shortName(MidiDeviceInfo i) {
-        String p = i.getProperties().getString(MidiDeviceInfo.PROPERTY_PRODUCT, "");
-        return p.isEmpty() ? Fm1Port.name(i) : p;
-    }
 
     private void onMessage(byte[] m) {
         String name = Codec.sound(m);
@@ -634,7 +832,7 @@ public class MainActivity extends Activity {
         String detail = parts.length > 1 ? parts[1] : "";
         switch (parts[0]) {
             case "plug":
-                heading("Waiting for the FM-1…");
+                heading("No FM-1 yet");
                 if (mm == null) {
                     // No MIDI service (a Google TV box): straight over USB only, through a powered OTG hub.
                     body("Plug the FM-1 into this box's USB port through a powered USB OTG hub (the hub powers the box too), and turn it on.");
@@ -764,6 +962,8 @@ public class MainActivity extends Activity {
     /** Why there's no picture, if there isn't one. */
     private String need() {
         Fm1Port l = link;
+        // No FM-1 with the spyglass on: no panel in the way, the spyglass goes on with whatever MIDI there is.
+        if (l == null && glass != null) return null;
         if (l == null) return "plug:" + (bleOff ? "off" : "") + (bleOther != null ? "busy" : ""); // the panel redraws when Bluetooth changes
         // The FM-1 only sends what changes, so a still screen is quiet: once it has come, keep it.
         if (screenSince(opened)) return null;
