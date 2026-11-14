@@ -21,7 +21,8 @@ import java.util.Locale;
  */
 class Scope {
     /** Its USB name has one of these in it ("FM-1 Audio"; "USB-Audio", from the Jieli chip, with Open firmware). */
-    private static final String[] HINTS = {"fm-1", "fm1", "jieli", "usb-audio", "usb composite", "felucca", "melodee", "choralroot", "jiant"};
+    private static final String[] HINTS = {"fm-1", "fm1", "jieli", "usb-audio", "usb composite", "felucca", "melodee", "choralroot", "jiant",
+            "erik37", "sloop", "skiff", "loom"};   // (community firmwares name their USB audio after themselves: Erik37 "ERIK37")
     private static final int RATE = 48000;
     /** Samples kept: plenty for the window plus a period to find the trigger in. */
     private static final int KEEP = 8192;
