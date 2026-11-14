@@ -1,5 +1,7 @@
 # FM-1 Mirror + Spyglass for Android
 
+☕ If this helps you make music, you can [buy me a coffee on Ko-fi](https://ko-fi.com/aikellogg).
+
 The M-VAVE FM-1's tiny 1.54-inch screen, **big on an Android tablet or phone**, live, over USB or
 **Bluetooth**. Play the FM-1 from a USB keyboard through the same app, and watch every note or chord
 you play, on the keyboard or on the FM-1's own keys, in a **spyglass** beside the screen.
