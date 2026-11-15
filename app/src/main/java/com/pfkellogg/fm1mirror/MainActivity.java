@@ -586,6 +586,13 @@ public class MainActivity extends Activity {
     private Inputs.Route route() {
         if (inputs == null || inputs.routes.isEmpty()) return null;
         if (current >= inputs.routes.size()) current = 0;
+        // A pair whose keyboard isn't plugged in shows nothing: follow one whose keyboard is (keyboards swapped).
+        if (inputs.inputOf(inputs.routes.get(current)) == null)
+            for (int i = 0; i < inputs.routes.size(); i++)
+                if (inputs.inputOf(inputs.routes.get(i)) != null) {
+                    current = i;
+                    break;
+                }
         return inputs.routes.get(current);
     }
 
