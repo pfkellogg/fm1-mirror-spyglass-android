@@ -501,6 +501,12 @@ final class Glass extends FrameLayout {
         waveStart = sounding.isEmpty() ? -1 : waveStart < 0 ? now : waveStart;
     }
 
+    /** In the background (another app on screen): stop listening to the FM-1's sound; it opens again when drawn. */
+    void quiet() {
+        if (scope != null) scope.close();
+        scope = null;
+    }
+
     /** The FM-1's sound: open it when it's plugged in and allowed (looked for every 2 s). */
     private void listen(long now) {
         if (wave && (scope == null || scope.isDead()) && now - scopeLookedAt > 2000) {

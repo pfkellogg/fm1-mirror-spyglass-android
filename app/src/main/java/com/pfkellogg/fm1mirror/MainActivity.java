@@ -75,6 +75,8 @@ public class MainActivity extends Activity {
     private volatile boolean lost, running;
     /** Which link thread is the live one: leaving and coming back quickly mustn't leave two fighting over the FM-1. */
     private volatile int linkGen;
+    /** Playing on behind another app: no screen asked for (the FM-1 stops sending 3 s after the last hello). */
+    private volatile boolean behind;
     private boolean drawnLinked;
     private volatile Installer installer;
     private volatile boolean keysChanged;
@@ -220,6 +222,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
+        behind = false;
         Background.stop(this);
         if (!running) { // (still running when it played on in the background)
             running = true;
@@ -241,6 +244,10 @@ public class MainActivity extends Activity {
         // keyboard; the notification keeps Android from closing the app. On a TV, or with no FM-1: let go, as before.
         boolean tv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
         if (!tv && link != null && !isFinishing()) {
+            // Only the keyboard to the FM-1: no screen, no recording its sound (less for the tablet and the FM-1 to do,
+            // and the FM-1's USB sound is left alone while another app plays through it).
+            behind = true;
+            if (glass != null) glass.quiet();
             Background.start(this);
             return;
         }
@@ -347,7 +354,9 @@ public class MainActivity extends Activity {
             }
             if (l != null) {
                 try {
-                    if (now - helloAt >= HELLO_EVERY) {
+                    if (behind) {
+                        first = true; // the whole screen again when it's back on screen
+                    } else if (now - helloAt >= HELLO_EVERY) {
                         helloAt = now;
                         // The whole screen the first time: someone else may be keeping the mirror on.
                         l.send(first ? Codec.HELLO_ALL : Codec.HELLO);
