@@ -91,6 +91,8 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
     or to play both.
   - Other MIDI devices and apps, such as Synth Spyglass's "Mac (Wi-Fi)".
   - Several keyboards can each have a pair; ◀ ▶ on the dial (or the remote) shows the next in the spyglass.
+    From 1.5.5, when the pair showing has no keyboard plugged in (you swapped keyboards), the spyglass moves to a pair
+    whose keyboard is: before, it kept following the missing one and showed no notes and no waveform.
   - **The show goes on:** a keyboard plays and shows in the spyglass with or without an FM-1, and anything
     plugged in (the FM-1, a keyboard) is picked up the moment it arrives. There's no "Waiting" screen over
     the spyglass.
