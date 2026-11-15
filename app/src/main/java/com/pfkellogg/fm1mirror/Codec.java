@@ -226,7 +226,9 @@ final class Codec {
         // (the Felucca family names itself: JIANT FM "Juan Jiant" / "JIANT", Felucca "Felucca", ChoralRoot "ChoralRoot";
         // JIANT's own updater, "JIANT Update", is not one to mirror)
         boolean felucca = (n.contains("jiant") && !n.contains("update")) || n.contains("felucca") || n.contains("choralroot");
-        return (n.contains("fm1") || n.contains("fm-1") || felucca || n.contains("usb composite") || n.contains("usb-midi") || n.contains("usb midi") || isUpdaterName(n))
+        // (other community firmwares name their USB MIDI after themselves too: Erik37 "ERIK37", Skiff, LOOM-8)
+        boolean community = n.contains("erik") || n.contains("skiff") || n.contains("loom");
+        return (n.contains("fm1") || community || n.contains("fm-1") || felucca || n.contains("usb composite") || n.contains("usb-midi") || n.contains("usb midi") || isUpdaterName(n))
                 && !n.contains("bridge");
     }
 

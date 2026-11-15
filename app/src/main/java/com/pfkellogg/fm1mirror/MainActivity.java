@@ -73,6 +73,9 @@ public class MainActivity extends Activity {
     private volatile Fm1Port link;
     private volatile long opened;
     private volatile boolean lost, running;
+    /** Which link thread is the live one: leaving and coming back quickly mustn't leave two fighting over the FM-1. */
+    private volatile int linkGen;
+    private boolean drawnLinked;
     private volatile Installer installer;
     private volatile boolean keysChanged;
     private final Played played = new Played();
@@ -212,7 +215,8 @@ public class MainActivity extends Activity {
         super.onStart();
         running = true;
         if (inputs != null) inputs.start(); // the keyboards, FM-1 or not: the show goes on
-        Thread t = new Thread(this::keepLinked, "FM-1 link");
+        final int gen = ++linkGen;
+        Thread t = new Thread(() -> keepLinked(gen), "FM-1 link");
         t.setDaemon(true);
         t.start();
         main.post(tick);
@@ -229,11 +233,11 @@ public class MainActivity extends Activity {
     // ---- the link: open the FM-1, keep saying hello, ask what it is
 
     /** On a thread of its own: opening waits for Android, and the FM-1 stops sending 3 s after the last hello. */
-    private void keepLinked() {
+    private void keepLinked(int gen) {
         long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0;
         boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true;
         Fm1Port told = null;
-        while (running) {
+        while (running && gen == linkGen) {
             if (rescan) {
                 rescan = false;
                 lookedAt = 0;
@@ -820,6 +824,11 @@ public class MainActivity extends Activity {
             showKeys();
             update();
             showLink();
+            boolean linked = link != null;
+            if (linked != drawnLinked) { // the "No FM-1 yet" line comes and goes
+                drawnLinked = linked;
+                screen.invalidate();
+            }
             main.postDelayed(this, 300);
         }
     };
@@ -1305,7 +1314,7 @@ public class MainActivity extends Activity {
     private final class ScreenView extends View {
         private final Bitmap bitmap = Bitmap.createBitmap(Codec.SIZE, Codec.SIZE, Bitmap.Config.ARGB_8888);
         private final int[] argb = new int[Codec.SIZE * Codec.SIZE];
-        private final Paint paint = new Paint();
+        private final Paint paint = new Paint(), hint = new Paint();
         private final Rect src = new Rect(0, 0, Codec.SIZE, Codec.SIZE), dst = new Rect();
         private final int smoothSize = Codec.SIZE * Codec.SMOOTH_SCALE;
         private final Bitmap smooth = Bitmap.createBitmap(smoothSize, smoothSize, Bitmap.Config.ARGB_8888);
@@ -1329,6 +1338,14 @@ public class MainActivity extends Activity {
             }
             canvas.drawColor(BG);
             if (!mirrorOn) return;
+            if (link == null) { // (the spyglass is on, so there's no panel saying what to do)
+                hint.setColor(0xff9a9a9a);
+                hint.setTextSize(dp(20));
+                hint.setTextAlign(Paint.Align.CENTER);
+                hint.setAntiAlias(true);
+                canvas.drawText("No FM-1 yet: plug it into this tablet", getWidth() / 2f, getHeight() / 2f, hint);
+                return;
+            }
             int side = Math.min(getWidth(), getHeight());
             int x = (getWidth() - side) / 2, y = (getHeight() - side) / 2;
             dst.set(x, y, x + side, y + side);
