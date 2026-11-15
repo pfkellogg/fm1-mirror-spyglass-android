@@ -240,10 +240,9 @@ public class MainActivity extends Activity {
     protected void onStop() {
         super.onStop();
         main.removeCallbacks(tick);
-        // Another app on screen (flowkey, say): on a tablet or phone, with an FM-1 here, keep playing it from the
-        // keyboard; the notification keeps Android from closing the app. On a TV, or with no FM-1: let go, as before.
-        boolean tv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
-        if (!tv && link != null && !isFinishing()) {
+        // Another app on screen (flowkey, say), on a tablet, phone or TV, with an FM-1 here: keep playing it from the
+        // keyboard; the notification keeps Android from closing the app. With no FM-1, or Back pressed: let go.
+        if (link != null && !isFinishing()) {
             // Only the keyboard to the FM-1: no screen, no recording its sound (less for the tablet and the FM-1 to do,
             // and the FM-1's USB sound is left alone while another app plays through it).
             behind = true;
