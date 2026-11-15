@@ -1375,11 +1375,82 @@ public class MainActivity extends Activity {
         private final int smoothSize = Codec.SIZE * Codec.SMOOTH_SCALE;
         private final Bitmap smooth = Bitmap.createBitmap(smoothSize, smoothSize, Bitmap.Config.ARGB_8888);
         private final Rect smoothSrc = new Rect(0, 0, smoothSize, smoothSize);
+        /** Smooth runs on a thread of its own (a whole screen takes about half a second on a small tablet): the newest
+         *  picture waiting for it, the last one it smoothed, its work and the finished copy the screen takes from. */
+        private final Object smoothLock = new Object();
+        private int[] smoothWant;
+        private final int[] smoothFrom = new int[Codec.SIZE * Codec.SIZE];
+        private boolean smoothedOnce;
+        private final int[] smoothWork = new int[smoothSize * smoothSize], smoothDone = new int[smoothSize * smoothSize];
+        /** The smooth picture has been drawn once (until then the plain one shows). */
+        private boolean smoothReady;
+        private Thread smoother;
 
         ScreenView(Context c) {
             super(c);
             paint.setFilterBitmap(false);
             paint.setAntiAlias(false);
+        }
+
+        private void smoothLater(int[] picture) {
+            synchronized (smoothLock) {
+                smoothWant = picture;
+                smoothLock.notify();
+            }
+            if (smoother == null) {
+                smoother = new Thread(this::smoothing, "Smooth");
+                smoother.setDaemon(true);
+                smoother.setPriority(Thread.NORM_PRIORITY - 1);
+                smoother.start();
+            }
+        }
+
+        /** Only around what changed since the last one: a key bar lighting up costs next to nothing. */
+        private void smoothing() {
+            final int n = Codec.SIZE;
+            while (true) {
+                int[] a;
+                synchronized (smoothLock) {
+                    while (smoothWant == null) {
+                        try {
+                            smoothLock.wait();
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                    }
+                    a = smoothWant;
+                    smoothWant = null;
+                }
+                int x0 = n, y0 = n, x1 = 0, y1 = 0;
+                if (!smoothedOnce) {
+                    x0 = y0 = 0;
+                    x1 = y1 = n;
+                } else {
+                    for (int y = 0; y < n; y++)
+                        for (int x = 0; x < n; x++)
+                            if (a[y * n + x] != smoothFrom[y * n + x]) {
+                                x0 = Math.min(x0, x);
+                                x1 = Math.max(x1, x + 1);
+                                y0 = Math.min(y0, y);
+                                y1 = Math.max(y1, y + 1);
+                            }
+                    if (x1 <= x0) continue; // nothing changed
+                }
+                smoothedOnce = true;
+                System.arraycopy(a, 0, smoothFrom, 0, a.length);
+                final int[] r = Codec.smoothInto(a, n, smoothWork, x0, y0, x1, y1);
+                synchronized (smoothDone) {
+                    for (int y = r[1]; y < r[3]; y++)
+                        System.arraycopy(smoothWork, y * smoothSize + r[0], smoothDone, y * smoothSize + r[0], r[2] - r[0]);
+                }
+                post(() -> {
+                    synchronized (smoothDone) {
+                        smooth.setPixels(smoothDone, r[1] * smoothSize + r[0], smoothSize, r[0], r[1], r[2] - r[0], r[3] - r[1]);
+                    }
+                    smoothReady = true;
+                    invalidate();
+                });
+            }
         }
 
         @Override
@@ -1389,7 +1460,7 @@ public class MainActivity extends Activity {
                     changed = false;
                     for (int i = 0; i < argb.length; i++) argb[i] = look.paint(pixels[i]);
                     bitmap.setPixels(argb, 0, Codec.SIZE, 0, 0, Codec.SIZE, Codec.SIZE);
-                    if (smoothOn) smooth.setPixels(Codec.smooth(argb, Codec.SIZE), 0, smoothSize, 0, 0, smoothSize, smoothSize);
+                    if (smoothOn) smoothLater(argb.clone());
                 }
             }
             canvas.drawColor(BG);
@@ -1405,8 +1476,9 @@ public class MainActivity extends Activity {
             int side = Math.min(getWidth(), getHeight());
             int x = (getWidth() - side) / 2, y = (getHeight() - side) / 2;
             dst.set(x, y, x + side, y + side);
-            paint.setFilterBitmap(smoothOn);
-            canvas.drawBitmap(smoothOn ? smooth : bitmap, smoothOn ? smoothSrc : src, dst, paint);
+            boolean sm = smoothOn && smoothReady;
+            paint.setFilterBitmap(sm);
+            canvas.drawBitmap(sm ? smooth : bitmap, sm ? smoothSrc : src, dst, paint);
         }
     }
 }

@@ -31,61 +31,128 @@ final class Codec {
     /** How many times bigger the smooth picture is. */
     static final int SMOOTH_SCALE = 4;
 
-    /** One Scale2x pass: follows diagonals and curves, by which neighbours are the same colour. */
-    private static int[] scale2x(int[] src, int size) {
-        int out = size * 2;
-        int[] o = new int[out * out];
-        for (int y = 0; y < size; y++) {
-            int up = Math.max(y - 1, 0), down = Math.min(y + 1, size - 1);
-            for (int x = 0; x < size; x++) {
-                int e = src[y * size + x], b = src[up * size + x], h = src[down * size + x];
-                int d = src[y * size + Math.max(x - 1, 0)], f = src[y * size + Math.min(x + 1, size - 1)];
-                int e0 = e, e1 = e, e2 = e, e3 = e;
-                if (b != h && d != f) {
-                    if (d == b) e0 = d;
-                    if (b == f) e1 = f;
-                    if (d == h) e2 = d;
-                    if (h == f) e3 = f;
-                }
-                int i = y * 2 * out + x * 2;
-                o[i] = e0;
-                o[i + 1] = e1;
-                o[i + out] = e2;
-                o[i + out + 1] = e3;
-            }
-        }
-        return o;
+    /** The unsharp mask: the blur's radius (sigma, in output pixels) and how much of the difference is added back. */
+    private static final float SHARPEN_RADIUS = 1f, SHARPEN_AMOUNT = 2.6f;
+
+    private static float lanczos3(float x) {
+        x = Math.abs(x);
+        if (x < 1e-6f) return 1f;
+        if (x >= 3f) return 0f;
+        double px = Math.PI * x;
+        return (float) (3 * Math.sin(px) * Math.sin(px / 3) / (px * px));
     }
 
-    /** A 1-2-1 blur across and down, on opaque ARGB. */
-    private static int[] soften(int[] src, int size) {
-        int[] across = new int[size * size * 3];
-        for (int y = 0; y < size; y++) {
-            for (int x = 0; x < size; x++) {
-                int l = src[y * size + Math.max(x - 1, 0)], m = src[y * size + x], r = src[y * size + Math.min(x + 1, size - 1)];
-                int i = (y * size + x) * 3;
-                for (int k = 0; k < 3; k++) {
-                    int sh = 16 - 8 * k;
-                    across[i + k] = (l >> sh & 255) + 2 * (m >> sh & 255) + (r >> sh & 255);
-                }
+    /** Lanczos-3 taps for each output position along a side: 6 source indices and weights (normalised, edges clamped). */
+    private static int[] tapIndex;
+    private static float[] tapWeight;
+    private static int tapSize;
+
+    private static synchronized void taps(int size) {
+        if (tapSize == size) return;
+        int big = size * SMOOTH_SCALE;
+        tapIndex = new int[big * 6];
+        tapWeight = new float[big * 6];
+        for (int o = 0; o < big; o++) {
+            float c = (o + 0.5f) / SMOOTH_SCALE - 0.5f;
+            int first = (int) Math.floor(c) - 2;
+            float sum = 0;
+            for (int j = 0; j < 6; j++) {
+                int i = first + j;
+                tapIndex[o * 6 + j] = Math.max(0, Math.min(size - 1, i));
+                sum += tapWeight[o * 6 + j] = lanczos3(c - i);
             }
+            for (int j = 0; j < 6; j++) tapWeight[o * 6 + j] /= sum;
         }
-        int[] o = new int[size * size];
-        for (int y = 0; y < size; y++) {
-            int up = Math.max(y - 1, 0), down = Math.min(y + 1, size - 1);
-            for (int x = 0; x < size; x++) {
-                int a = (up * size + x) * 3, m = (y * size + x) * 3, d = (down * size + x) * 3, v = 0xff;
-                for (int k = 0; k < 3; k++) v = v << 8 | (across[a + k] + 2 * across[m + k] + across[d + k] + 8) >> 4;
-                o[y * size + x] = v;
-            }
-        }
-        return o;
+        tapSize = size;
     }
 
-    /** Smooth: the picture, SMOOTH_SCALE times bigger, with the jaggies off. Scale2x twice, then a light blur.
-     *  The original isn't changed. The same as the desktop app's smooth.rs. */
+    /** The blur's kernel for the unsharp mask (sigma SHARPEN_RADIUS), and how far it reaches either side. */
+    private static final int REACH = (int) Math.ceil(SHARPEN_RADIUS * 3);
+    private static final float[] KERNEL = new float[2 * REACH + 1];
+
+    static {
+        float sum = 0;
+        for (int i = -REACH; i <= REACH; i++) sum += KERNEL[i + REACH] = (float) Math.exp(-(i * i) / (2.0 * SHARPEN_RADIUS * SHARPEN_RADIUS));
+        for (int i = 0; i < KERNEL.length; i++) KERNEL[i] /= sum;
+    }
+
+    /**
+     * Smooth: the picture, SMOOTH_SCALE times bigger, smooth and crisp. A Lanczos-3 enlargement draws curves and
+     * diagonals smoothly (and evens out the dot patterns some firmwares, like Erik37, shade their screens with), then a
+     * firm unsharp mask (a blur of radius 1 taken away at 2.6) gives the edges back their bite. The same as the desktop
+     * app's smooth.rs (from 1.3.10) and the iOS app. From 1.6.2; before, Scale2x twice and a light blur, which looked soft.
+     * The original isn't changed.
+     */
     static int[] smooth(int[] argb, int size) {
-        return soften(scale2x(scale2x(argb, size), size * 2), size * SMOOTH_SCALE);
+        int[] out = new int[size * SMOOTH_SCALE * size * SMOOTH_SCALE];
+        smoothInto(argb, size, out, 0, 0, size, size);
+        return out;
+    }
+
+    /**
+     * Smooths only around a changed part of the picture (source pixels x0..x1, y0..y1, end exclusive) into `out`, the
+     * whole smooth picture: a whole screen takes about half a second on a small tablet, a few key bars next to nothing.
+     * Returns the part of `out` that was written: {left, top, right, bottom}.
+     */
+    static int[] smoothInto(int[] argb, int size, int[] out, int x0, int y0, int x1, int y1) {
+        taps(size);
+        final int S = SMOOTH_SCALE, big = size * S, grow = 3 * S + 1 + REACH;
+        // O: what can change (Lanczos reaches 3 source pixels, the blur REACH more); E: what O's sharpening reads.
+        int ox0 = Math.max(0, x0 * S - grow), oy0 = Math.max(0, y0 * S - grow);
+        int ox1 = Math.min(big, x1 * S + grow), oy1 = Math.min(big, y1 * S + grow);
+        int ex0 = Math.max(0, ox0 - REACH), ey0 = Math.max(0, oy0 - REACH);
+        int ex1 = Math.min(big, ox1 + REACH), ey1 = Math.min(big, oy1 + REACH);
+        int ew = ex1 - ex0, eh = ey1 - ey0;
+        int[] ti = tapIndex;
+        float[] tw = tapWeight;
+        int sy0 = size, sy1 = 0;
+        for (int y = ey0; y < ey1; y++)
+            for (int j = 0; j < 6; j++) {
+                sy0 = Math.min(sy0, ti[y * 6 + j]);
+                sy1 = Math.max(sy1, ti[y * 6 + j] + 1);
+            }
+        int sh = sy1 - sy0;
+        float[] across = new float[sh * ew], enlarged = new float[ew * eh], across2 = new float[ew * eh];
+        for (int i = oy0; i < oy1; i++) for (int x = ox0; x < ox1; x++) out[i * big + x] = 0xff000000;
+        for (int ch = 0; ch < 3; ch++) {
+            int bits = 16 - 8 * ch;
+            for (int sy = sy0; sy < sy1; sy++) {
+                int row = sy * size, a = (sy - sy0) * ew;
+                for (int x = ex0; x < ex1; x++) {
+                    float v = 0;
+                    int t = x * 6;
+                    for (int j = 0; j < 6; j++) v += tw[t + j] * (argb[row + ti[t + j]] >> bits & 255);
+                    across[a + x - ex0] = v;
+                }
+            }
+            for (int y = ey0; y < ey1; y++) {
+                int t = y * 6, e = (y - ey0) * ew;
+                for (int x = 0; x < ew; x++) {
+                    float v = 0;
+                    for (int j = 0; j < 6; j++) v += tw[t + j] * across[(ti[t + j] - sy0) * ew + x];
+                    enlarged[e + x] = v;
+                }
+            }
+            // The blur, across then down, inside E (edges clamped), then sharpen O.
+            for (int y = 0; y < eh; y++)
+                for (int x = 0; x < ew; x++) {
+                    float v = 0;
+                    for (int j = -REACH; j <= REACH; j++) v += KERNEL[j + REACH] * enlarged[y * ew + Math.max(0, Math.min(ew - 1, x + j))];
+                    across2[y * ew + x] = v;
+                }
+            for (int y = oy0; y < oy1; y++) {
+                int ly = y - ey0;
+                for (int x = ox0; x < ox1; x++) {
+                    int lx = x - ex0;
+                    float b = 0;
+                    for (int j = -REACH; j <= REACH; j++) b += KERNEL[j + REACH] * across2[Math.max(0, Math.min(eh - 1, ly + j)) * ew + lx];
+                    float e = enlarged[ly * ew + lx];
+                    int v = Math.round(e + SHARPEN_AMOUNT * (e - b));
+                    out[y * big + x] |= Math.max(0, Math.min(255, v)) << bits;
+                }
+            }
+        }
+        return new int[] {ox0, oy0, ox1, oy1};
     }
 
     /** The firmware's own name, if this is its answer to ASK_INFO: "FELUCCA SLOOP 2.8.4", then other things. */
@@ -174,7 +241,11 @@ final class Codec {
          */
         private static int lift(int r, int g, int b) {
             float l = (0.299f * r + 0.587f * g + 0.114f * b) / 255f, want = 0.8f;
-            if (l > 0.03f && l < want) {
+            // A dark grey is background shading (Erik37 dots its background), not text: leave it dark. Lifting it
+            // turned that whole screen light grey and hid the piano.
+            int chroma = Math.max(r, Math.max(g, b)) - Math.min(r, Math.min(g, b));
+            boolean shade = l < 0.25f && chroma < 24;
+            if (l > 0.03f && l < want && !shade) {
                 float t = (want - l) / (1f - l);
                 r += (int) ((255 - r) * t);
                 g += (int) ((255 - g) * t);
