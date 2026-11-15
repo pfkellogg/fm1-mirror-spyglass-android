@@ -123,7 +123,8 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   is on" shows in the notifications (tap it to come back; **Quit** closes the app); Android asks once to allow it. Behind
   the other app it only passes the keyboard on: it doesn't ask for the FM-1's screen or record its sound, so there's less
   for the tablet to do. **Back** in FM-1 Mirror, or swiping it away from the recent apps, lets go of the FM-1 completely.
-  On a TV (Google TV, Fire TV) it lets go when you leave, as before. The other app should only listen to the FM-1, not
+  From 1.6.1 a TV (Google TV, Fire TV) plays on in the background too; it shows no notification there, so open
+  FM-1 Mirror and press Back to let go (a Fire TV Stick, with little memory, may still close it now and then). The other app should only listen to the FM-1, not
   play it: only one app at a time can send to it.
   Two apps side by side need split screen, which Android Go tablets (small memory) don't have: there, swipe between them.
   Android uses one USB sound device at a time: with the FM-1 plugged in, the other app's sound may go into the FM-1 and come out of its headphone jack, not out of a USB sound adapter.
