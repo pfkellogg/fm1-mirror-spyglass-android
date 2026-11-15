@@ -118,7 +118,15 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   Only one app can hold the FM-1's MIDI input at a time: if another MIDI app is running in the background (Synth Spyglass's service, say, or a learning app like flowkey), FM-1 Mirror can't connect, and with the spyglass on, the mirror's place says "No FM-1 yet". Close the other app first.
 - **Update FM-1** shows in the bar when this app has a newer Big Screen firmware than the FM-1 runs
   (over USB only; about 2 minutes, your sounds and projects stay).
-- Playing works while the app is on screen: switched to another app, it lets go of the FM-1 (so that app can use it), and picks it up again when you come back (steady from 1.5.4).
+- **Playing alongside another app (flowkey, say), from 1.6.0:** on a tablet or phone, switch to the other app and FM-1 Mirror
+  plays on in the background: your keyboard keeps playing the FM-1, and the other app hears the same keyboard. "FM-1 Mirror
+  is on" shows in the notifications (tap it to come back; **Quit** closes the app); Android asks once to allow it. Behind
+  the other app it only passes the keyboard on: it doesn't ask for the FM-1's screen or record its sound, so there's less
+  for the tablet to do. **Back** in FM-1 Mirror, or swiping it away from the recent apps, lets go of the FM-1 completely.
+  On a TV (Google TV, Fire TV) it lets go when you leave, as before. The other app should only listen to the FM-1, not
+  play it: only one app at a time can send to it.
+  Two apps side by side need split screen, which Android Go tablets (small memory) don't have: there, swipe between them.
+  Android uses one USB sound device at a time: with the FM-1 plugged in, the other app's sound may go into the FM-1 and come out of its headphone jack, not out of a USB sound adapter.
 
 ## On a TV (Fire TV Stick 4K)
 
