@@ -10,8 +10,8 @@ android {
         applicationId "com.pfkellogg.fm1mirror"
         minSdk 25 // Fire TV Stick 4K (Fire OS 6 = Android 7.1); newer calls are guarded by SDK_INT
         targetSdk 34
-        versionCode 16
-        versionName "1.5.5"
+        versionCode 17
+        versionName "1.6.0"
     }
     // Release builds are signed with the key named in ../keystore.properties (kept out of git;
     // the same key every time, so a new version installs over the old one).

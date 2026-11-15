@@ -187,6 +187,13 @@ public class MainActivity extends Activity {
             root.setPadding(dp(24), dp(12), dp(24), dp(40));
         setContentView(root);
         if (prefs.getBoolean("glass", false)) setGlass(true);
+        // Android 13+: ask once to show "FM-1 Mirror is on" (and its Quit) while it plays on in the background.
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("askedNotify", false)
+                && !getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            prefs.edit().putBoolean("askedNotify", true).apply();
+            requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 9);
+        }
 
         if (mm != null) {
             mm.registerDeviceCallback(new MidiManager.DeviceCallback() {
@@ -213,20 +220,54 @@ public class MainActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
-        running = true;
-        if (inputs != null) inputs.start(); // the keyboards, FM-1 or not: the show goes on
-        final int gen = ++linkGen;
-        Thread t = new Thread(() -> keepLinked(gen), "FM-1 link");
-        t.setDaemon(true);
-        t.start();
+        Background.stop(this);
+        if (!running) { // (still running when it played on in the background)
+            running = true;
+            if (inputs != null) inputs.start(); // the keyboards, FM-1 or not: the show goes on
+            final int gen = ++linkGen;
+            Thread t = new Thread(() -> keepLinked(gen), "FM-1 link");
+            t.setDaemon(true);
+            t.start();
+        }
+        main.removeCallbacks(tick);
         main.post(tick);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        running = false; // the link thread lets go of the FM-1
         main.removeCallbacks(tick);
+        // Another app on screen (flowkey, say): on a tablet or phone, with an FM-1 here, keep playing it from the
+        // keyboard; the notification keeps Android from closing the app. On a TV, or with no FM-1: let go, as before.
+        boolean tv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
+        if (!tv && link != null && !isFinishing()) {
+            Background.start(this);
+            return;
+        }
+        letGo();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        letGo();
+        Background.stop(this);
+    }
+
+    /** The notification's Quit: close the app. */
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        if (Background.QUIT.equals(intent.getAction())) {
+            letGo();
+            Background.stop(this);
+            finishAndRemoveTask();
+        }
+    }
+
+    private void letGo() {
+        if (!running) return;
+        running = false; // the link thread lets go of the FM-1
         if (inputs != null) inputs.stop();
     }
 
