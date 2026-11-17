@@ -154,7 +154,7 @@ public class MainActivity extends Activity {
         } catch (IOException ignored) {
         }
         mirrorOn = prefs.getBoolean("mirror", true);
-        smoothOn = prefs.getBoolean("smooth", true);
+        smoothOn = true;                                  // always on at start (the button turns it off until the app closes)
         keysButton = button("MIDI", v -> chooseMidi());
         bar.addView(keysButton);
         mirrorButton = button("", v -> setMirror(!mirrorOn));
