@@ -18,6 +18,21 @@ Questions, or something not working? Write to me: **pfkellogg@gmail.com**
 
 **No FM-1?** [MIDI Spyglass](https://github.com/pfkellogg/midi-spyglass) is the spyglass on its own, for any MIDI keyboard: the notes and chords, the staff, the waveform, and FROM → TO pairs that play your synths (Mac, Windows, Linux and Android; [video](https://youtu.be/GMLf3W4oTp4)).
 
+## What's new about it
+
+The FM-1 doesn't normally share its screen with anything. What I added is a small piece of intelligence inside its
+firmware: **the FM-1 sends its display only when my app asks for it.** About once a second the app says "I'm watching";
+while it does, the FM-1 sends each part of the screen it redraws, and when the app goes quiet the FM-1 stops. With no app
+asking it sends nothing, and it plays exactly as before.
+
+That's why the firmware matters: the regular releases of SLOOP, JIANT, Melodee and the others don't have this part, so
+there's nothing to show. Their **Big Screen** versions are the same firmwares with this one small addition (free, MIT
+licensed, so any firmware author can include it; it's offered to M-VAVE, SLOOP, Erik37 and NACHTFAHRT).
+
+On the other end, my app catches the screen and makes it readable: as big as you like, smoothed and sharpened, in
+high-contrast colours if you want, with the spyglass for notes and chords beside it. FM-1 Mirror runs on Mac, Windows,
+Linux and Android, and iPhone and iPad are coming.
+
 ## Download
 
 [**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk)
