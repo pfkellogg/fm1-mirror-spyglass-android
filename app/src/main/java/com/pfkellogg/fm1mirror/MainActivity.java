@@ -73,6 +73,8 @@ public class MainActivity extends Activity {
     private volatile Fm1Port link;
     private volatile long opened;
     private volatile boolean lost, running;
+    /** The FM-1 answered Charles Vestal's mirror (Fm1Base: fm1-base firmware with mirror = true): keep it on. */
+    private volatile boolean baseOn;
     /** Which link thread is the live one: leaving and coming back quickly mustn't leave two fighting over the FM-1. */
     private volatile int linkGen;
     /** Playing on behind another app: no screen asked for (the FM-1 stops sending 3 s after the last hello). */
@@ -332,8 +334,10 @@ public class MainActivity extends Activity {
 
     /** On a thread of its own: opening waits for Android, and the FM-1 stops sending 3 s after the last hello. */
     private void keepLinked(int gen) {
-        long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0;
-        boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true;
+        long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0, baseAt = 0;
+        boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true, baseFirst = true;
+        int baseAsked = 0;
+        final long[] baseAskAt = {1000, 5000, 6000}; // ms after opening: clear of the questions at 2, 3 and 4 s
         Fm1Port told = null;
         while (running && gen == linkGen) {
             if (rescan) {
@@ -398,6 +402,9 @@ public class MainActivity extends Activity {
                     opened = System.currentTimeMillis();
                     askedIdentity = askedBuild = askedInfo = false;
                     first = true;
+                    baseOn = false;
+                    baseAsked = 0;
+                    baseFirst = true;
                     helloAt = 0;
                     link = l;
                 }
@@ -424,6 +431,20 @@ public class MainActivity extends Activity {
                     if (!askedInfo && now - opened > 4000) {
                         askedInfo = true;
                         l.send(Codec.ASK_INFO);
+                    }
+                    // Charles Vestal's mirror (fm1-base firmware): asked three times; once it answers, kept on every
+                    // 2 s (it stops after 6), and the whole screen again when the app comes back to the front.
+                    if (baseOn) {
+                        if (behind) {
+                            baseFirst = true;
+                        } else if (now - baseAt >= 2000) {
+                            baseAt = now;
+                            l.send(Fm1Base.request(baseFirst ? 2 : 1));
+                            baseFirst = false;
+                        }
+                    } else if (!behind && baseAsked < baseAskAt.length && now - opened > baseAskAt[baseAsked]) {
+                        baseAsked++;
+                        l.send(Fm1Base.request(2));
                     }
                 } catch (IOException e) {
                     lost = true;
@@ -906,6 +927,21 @@ public class MainActivity extends Activity {
         }
         synchronized (this) {
             if (Codec.apply(pixels, m)) {
+                lastScreen = System.currentTimeMillis();
+                if (!changed) {
+                    changed = true;
+                    screen.postInvalidateOnAnimation();
+                }
+                return;
+            }
+        }
+        synchronized (this) {
+            int got = Fm1Base.apply(pixels, m); // Charles Vestal's mirror (fm1-base firmware)
+            if (got == Fm1Base.HELLO) {
+                baseOn = true;
+                return;
+            }
+            if (got == Fm1Base.PAINTED) {
                 lastScreen = System.currentTimeMillis();
                 if (!changed) {
                     changed = true;
