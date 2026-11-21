@@ -1513,7 +1513,7 @@ public class MainActivity extends Activity {
             synchronized (MainActivity.this) {
                 if (changed) {
                     changed = false;
-                    for (int i = 0; i < argb.length; i++) argb[i] = look.paint(pixels[i]);
+                    look.paintAll(pixels, argb, Codec.SIZE);
                     bitmap.setPixels(argb, 0, Codec.SIZE, 0, 0, Codec.SIZE, Codec.SIZE);
                     if (smoothOn) smoothLater(argb.clone());
                 }

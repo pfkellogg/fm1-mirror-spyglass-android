@@ -235,6 +235,53 @@ final class Codec {
             }
         }
 
+        /** The whole screen in this look, into out. Bright color lifts only thin things on a dark background (text,
+         *  lines): what lies in or next to a filled area (a picture, a panel, a dotted background) keeps its own
+         *  colours, so a firmware's pictures (Erik37's piano) aren't washed out. */
+        void paintAll(int[] px, int[] out, int side) {
+            if (this != BRIGHT) {
+                for (int i = 0; i < px.length; i++) out[i] = paint(px[i]);
+                return;
+            }
+            boolean[] near = pictureMask(px, side);
+            for (int i = 0; i < px.length; i++) out[i] = near[i] ? COLOR.paint(px[i]) : paint(px[i]);
+        }
+
+        /** Within 4 pixels of a spot whose 9x9 neighbourhood is more than 60% drawn (anything brighter than the black
+         *  background, dark dotted shading included). Text strokes on black never get that full. */
+        static boolean[] pictureMask(int[] px, int side) {
+            int[] ink = new int[px.length];
+            for (int i = 0; i < px.length; i++) {
+                int[] p = rgb(px[i]);
+                ink[i] = 0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2] > 0.03f * 255f ? 1 : 0;
+            }
+            int[] count = new int[px.length], area = new int[px.length];
+            window(ink, side, count, area);
+            int[] core = new int[px.length];
+            for (int i = 0; i < px.length; i++) core[i] = count[i] * 10 > area[i] * 6 ? 1 : 0;
+            window(core, side, count, area);
+            boolean[] near = new boolean[px.length];
+            for (int i = 0; i < px.length; i++) near[i] = count[i] > 0;
+            return near;
+        }
+
+        /** Counts of v in each pixel's 9x9 neighbourhood (clipped at the edges), by a summed-area table. */
+        private static void window(int[] v, int side, int[] count, int[] area) {
+            final int r = 4, w = side + 1;
+            int[] sat = new int[w * w];
+            for (int y = 0; y < side; y++)
+                for (int x = 0; x < side; x++)
+                    sat[(y + 1) * w + x + 1] = v[y * side + x] + sat[y * w + x + 1] + sat[(y + 1) * w + x] - sat[y * w + x];
+            for (int y = 0; y < side; y++) {
+                int y0 = Math.max(0, y - r), y1 = Math.min(side, y + r + 1);
+                for (int x = 0; x < side; x++) {
+                    int x0 = Math.max(0, x - r), x1 = Math.min(side, x + r + 1);
+                    count[y * side + x] = sat[y1 * w + x1] + sat[y0 * w + x0] - sat[y0 * w + x1] - sat[y1 * w + x0];
+                    area[y * side + x] = (y1 - y0) * (x1 - x0);
+                }
+            }
+        }
+
         private static int bright(int v) { return (int) Math.min(255f, v * 1.6f); }
 
         /**
