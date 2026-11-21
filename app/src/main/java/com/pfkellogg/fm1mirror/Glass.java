@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * The spyglass (from FM-1 Mirror + Spyglass, after Synth Spyglass for Android): the last note or chord played in a
+ * The spyglass (from FM-1 Big Screen + Spyglass, after Synth Spyglass for Android): the last note or chord played in a
  * round brass eyepiece, with the notes on a staff, their waveform, and how hard the key was hit. Tap it (on a TV:
  * OK) for the MIDI connections; drag it to move it; pinch it, or long-press it and drag the grip on its rim, to
  * resize it. Where it is and its size are remembered.
@@ -664,7 +664,7 @@ final class Glass extends FrameLayout {
 
     /** A spyglass's eyepiece: dark glass and a knurled brass rim lit from the top left. */
     /** The sound's name: warm gold letters, a little spaced, on a rounded band of dark smoked glass with a thin
-     *  brass edge (the rim's) and a soft shine on its upper half (as FM-1 Mirror on a computer). */
+     *  brass edge (the rim's) and a soft shine on its upper half (as FM-1 Big Screen on a computer). */
     private void soundBand(Canvas c, String s, float x, float y, float d) {
         String t = "\u266a  " + s;
         float size = Math.max(12 * density, d * 0.06f), room = d * 0.5f;

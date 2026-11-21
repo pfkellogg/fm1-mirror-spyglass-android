@@ -1,4 +1,6 @@
-# FM-1 Mirror + Spyglass for Android
+# FM-1 Big Screen + Spyglass for Android
+
+*Formerly called FM-1 Mirror: same app, new name.*
 
 ☕ If this helps you make music, you can [buy me a coffee on Ko-fi](https://ko-fi.com/aikellogg).
 
@@ -6,9 +8,9 @@ The M-VAVE FM-1's tiny 1.54-inch screen, **big on an Android tablet or phone**, 
 **Bluetooth**. Play the FM-1 from a USB keyboard through the same app, and watch every note or chord
 you play, on the keyboard or on the FM-1's own keys, in a **spyglass** beside the screen.
 
-![FM-1 Mirror + Spyglass on a tablet: the FM-1's screen big, and the spyglass showing A3](docs/screenshot.png)
+![FM-1 Big Screen + Spyglass on a tablet: the FM-1's screen big, and the spyglass showing A3](docs/screenshot.png)
 
-It combines two free apps for Android: [FM-1 Mirror](https://github.com/pfkellogg/fm1-mirror) (the
+It combines two free apps for Android: [FM-1 Big Screen](https://github.com/pfkellogg/fm1-mirror) (the
 big screen) and [Synth Spyglass](https://github.com/pfkellogg/synth-spyglass-android) (the notes). On
 Android only one app at a time can play the FM-1, so the two can't run together; this one does both.
 
@@ -30,7 +32,7 @@ there's nothing to show. Their **Big Screen** versions are the same firmwares wi
 licensed, so any firmware author can include it; it's offered to M-VAVE, SLOOP, Erik37 and NACHTFAHRT).
 
 On the other end, my app catches the screen and makes it readable: as big as you like, smoothed and sharpened, in
-high-contrast colours if you want, with the spyglass for notes and chords beside it. FM-1 Mirror runs on Mac, Windows,
+high-contrast colours if you want, with the spyglass for notes and chords beside it. FM-1 Big Screen runs on Mac, Windows,
 Linux and Android, and iPhone and iPad are coming.
 
 ## Download
@@ -44,7 +46,7 @@ Play, so Android asks first: allow your browser to **install unknown apps**, the
 > **Not the green "Code" button.** GitHub's green **Code → Download ZIP** gives the app's source
 > code, which doesn't install. Use the link above, or **Releases** on the right of the page.
 
-Already have FM-1 Mirror for Android? This installs over it, as an update.
+Already have FM-1 Big Screen for Android? This installs over it, as an update.
 
 ## Plugging it in
 
@@ -86,7 +88,7 @@ install, and left the FM-1 waiting in its updater (M-Upgrade or M-VAVE's page fi
 put the original V15 back first (**Recovery & force update › Restore original V15**). Thanks to a viewer who
 reported it.
 
-Tested with FM-1 Mirror 1.3.0 on a Mac, on a real FM-1 that had been on V16 (2026-11-04): V16, then Official Open, then Big Screen, with no lost connection. Not yet tested from V16 on Android. Installing Big Screen replaces V16. [The results](https://github.com/pfkellogg/fm1-mirror/blob/master/docs/V16-TEST.md), and [the video](https://youtu.be/WOjvFdw5KMA).
+Tested with FM-1 Big Screen 1.3.0 on a Mac, on a real FM-1 that had been on V16 (2026-11-04): V16, then Official Open, then Big Screen, with no lost connection. Not yet tested from V16 on Android. Installing Big Screen replaces V16. [The results](https://github.com/pfkellogg/fm1-mirror/blob/master/docs/V16-TEST.md), and [the video](https://youtu.be/WOjvFdw5KMA).
 
 Going back is easy: on the same page, **Device update › Start update** puts back M-VAVE's own Official
 Open firmware, and **Recovery & force update › Restore original V15** the firmware it came with.
@@ -119,6 +121,7 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   - Clock goes through too. SysEx never does: that's how the FM-1 is updated.
 - **The title** names the firmware the FM-1 says it runs (**SLOOP 2.8.4**), from 1.4.1. Firmware that doesn't say, like M-VAVE's Open, keeps the usual title.
 - **Hide mirror / Show mirror** hides the FM-1's screen, to keep only the spyglass. **Smooth** (on to begin with, every time the app starts, from 1.6.3) takes the jaggies off the FM-1's text and lines; off shows exactly what the FM-1 sends. From 1.6.2 it's smooth *and* sharp, as on the Mac (a Lanczos enlargement and a firm sharpening), also on firmwares that shade their screens with dots (Erik37); it redoes only the part of the screen that changed, so a small tablet keeps up.
+- **Bigger and even, from 1.6.4:** the FM-1's screen is drawn at a whole number of pixels per FM-1 pixel (3×, 4×, …), so dotted pictures such as Erik37's piano stay even instead of streaky. On a TV the button bar hides after 5 seconds without a remote press, which leaves room for 4× (960×960) on a 1080p TV; any button on the remote brings it back (that first press only shows the bar). For the sharpest picture on a Fire TV, set Settings → Display & Sounds → Display → **Calibrate Display** to the full screen, if your TV doesn't cut off the edges: otherwise Fire TV shrinks everything by a few percent and the pixels come out uneven again.
 - **The colour button** (Color, Bright color, Yellow on black, White on black, Black on white): for Erik37 use **Color**. Bright color lifts dim text for the original firmwares; on Erik37's shaded screen it looked washed out (light grey, the piano gone) before 1.6.2, and is still harsh.
 - **Spyglass:** a round brass eyepiece beside the screen with the note or chord you play
   ("A3 220.0 Hz", the pitch to one decimal from 1.5.0, "C major", "E + G · minor 3rd"), the notes on a grand staff, and how hard you hit the
@@ -131,16 +134,16 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
     (**K3, OUT PORT**, on **USB+BLE**).
   From 1.4.1 a note or chord clears 3 seconds after the last key comes up, leaving empty staves over "play a note", and the glass shows the **waveform** of the FM-1's real sound beside the staff, over USB (not Bluetooth). Android asks once to record audio, because it counts any audio input as the microphone: the app listens only to the FM-1. It finds the FM-1's sound by its name, also, from 1.5.3, when a community firmware names it after itself (Erik37's is "ERIK37"; SLOOP, Skiff and LOOM-8 too). From 1.5.4 the mirror itself finds the FM-1 under those names too, over USB MIDI.
 
-  Only one app can hold the FM-1's MIDI input at a time: if another MIDI app is running in the background (Synth Spyglass's service, say, or a learning app like flowkey), FM-1 Mirror can't connect, and with the spyglass on, the mirror's place says "No FM-1 yet". Close the other app first.
+  Only one app can hold the FM-1's MIDI input at a time: if another MIDI app is running in the background (Synth Spyglass's service, say, or a learning app like flowkey), FM-1 Big Screen can't connect, and with the spyglass on, the mirror's place says "No FM-1 yet". Close the other app first.
 - **Update FM-1** shows in the bar when this app has a newer Big Screen firmware than the FM-1 runs
   (over USB only; about 2 minutes, your sounds and projects stay).
-- **Playing alongside another app (flowkey, say), from 1.6.0:** on a tablet or phone, switch to the other app and FM-1 Mirror
-  plays on in the background: your keyboard keeps playing the FM-1, and the other app hears the same keyboard. "FM-1 Mirror
+- **Playing alongside another app (flowkey, say), from 1.6.0:** on a tablet or phone, switch to the other app and FM-1 Big Screen
+  plays on in the background: your keyboard keeps playing the FM-1, and the other app hears the same keyboard. "FM-1 Big Screen
   is on" shows in the notifications (tap it to come back; **Quit** closes the app); Android asks once to allow it. Behind
   the other app it only passes the keyboard on: it doesn't ask for the FM-1's screen or record its sound, so there's less
-  for the tablet to do. **Back** in FM-1 Mirror, or swiping it away from the recent apps, lets go of the FM-1 completely.
+  for the tablet to do. **Back** in FM-1 Big Screen, or swiping it away from the recent apps, lets go of the FM-1 completely.
   From 1.6.1 a TV (Google TV, Fire TV) plays on in the background too; it shows no notification there, so open
-  FM-1 Mirror and press Back to let go (a Fire TV Stick, with little memory, may still close it now and then). The other app should only listen to the FM-1, not
+  FM-1 Big Screen and press Back to let go (a Fire TV Stick, with little memory, may still close it now and then). The other app should only listen to the FM-1, not
   play it: only one app at a time can send to it.
   Two apps side by side need split screen, which Android Go tablets (small memory) don't have: there, swipe between them.
   Android uses one USB sound device at a time: with the FM-1 plugged in, the other app's sound may go into the FM-1 and come out of its headphone jack, not out of a USB sound adapter.
@@ -179,7 +182,7 @@ from this app's 1.3 or later (an older one sends its screen over USB only; plug 
    to USB (faster); firmware is only ever installed over USB.
 
 The FM-1 takes one Bluetooth connection at a time: close this app before connecting a computer
-([FM-1 Mirror](https://github.com/pfkellogg/fm1-mirror) on a Mac works over Bluetooth too), and the
+([FM-1 Big Screen](https://github.com/pfkellogg/fm1-mirror) on a Mac works over Bluetooth too), and the
 other way round.
 
 From 1.4.3 the **BT** button at the top shows the Bluetooth connection: **BT: on** (connected here),
@@ -234,17 +237,17 @@ The fourth: **[SLOOP + FM-1 Big Screen](https://github.com/pfkellogg/sloop-fm1/b
 
 The fifth: **[Melodee + FM-1 Big Screen](https://github.com/pfkellogg/melodee/blob/big-screen/BIG_SCREEN.md)**, keremimo's multi-engine synth and sequencer, Melodee 1.6.1 with the mirror added, and the sound playing on the spyglass too. USB only. Tested on a real FM-1 (2026-11-07) on a Mac and an Android tablet. Download it from its [Releases](https://github.com/pfkellogg/melodee/releases). Plain Melodee doesn't send its screen: it's fine to keep using it, and you only need this build to see it here. Watch it: [FM-1 Mirror's Big Update: Smooth, a Floating Spyglass, and Melodee on a Big Screen](https://youtu.be/Cve21r8oZJs).
 
-The sixth: **[Erik37 + FM-1 Big Screen](https://github.com/pfkellogg/erik37/blob/big-screen/BIG_SCREEN.md)**, genkigenki's grand piano firmware, Erik37 1.3 with the mirror added, and the sound playing on the spyglass too. USB only (Erik37 builds without Bluetooth). Tested on a real FM-1 (2026-11-14). The code is public; there's no download while it's offered to genkigenki ([pull request #13](https://github.com/genkigenki/erik37/pull/13)). Watch it: [FM-1 Mirror: Sharper Text, Erik37's Damper Sound, and Coming to iPhone & iPad](https://youtu.be/S677yseRAsM).
+The sixth: **[Erik37 + FM-1 Big Screen](https://github.com/pfkellogg/erik37/blob/big-screen/BIG_SCREEN.md)**, genkigenki's grand piano firmware, Erik37 1.3 with the mirror added, and the sound playing on the spyglass too. USB only (Erik37 builds without Bluetooth). Tested on a real FM-1 (2026-11-14). The code is public; there's no download while it's offered to genkigenki ([pull request #13](https://github.com/genkigenki/erik37/pull/13)). Watch it: [FM-1 Big Screen: Sharper Text, Erik37's Damper Sound, and Coming to iPhone & iPad](https://youtu.be/S677yseRAsM).
 
 The seventh: **[NACHTFAHRT + FM-1 Big Screen](https://github.com/pfkellogg/fm1-nachtfahrt/blob/big-screen/BIG_SCREEN.md)**, Cranky Man's generative Berlin School instrument, NACHTFAHRT 1.0 with the mirror added, and the piece playing on the spyglass. USB only. Tested on a real FM-1 (2026-11-17). The code is public; no download while it's offered to Cranky Man ([pull request #9](https://github.com/FartyPants/fm1-nachtfahrt/pull/9)). Its sibling NACHTBAR (a tenor sax in a late-night jazz bar) hasn't published its source yet; it's asked for ([issue #3](https://github.com/FartyPants/fm1-nachtbar/issues/3)) so it can get the same. Watch it: [NACHTBAR, and NACHTFAHRT on a Big Screen (Before/After)](https://youtu.be/TzhZUkLPeHU).
 
 **Offered to the authors.** The screen part is offered to each firmware's own author, so it can be in their official releases: M-VAVE's Official Open ([m-vave/fm1_open#24](https://github.com/m-vave/fm1_open/pull/24), tested on a real FM-1), SLOOP ([isod89/sloop-fm1#263](https://github.com/isod89/sloop-fm1/pull/263)), Erik37 ([#13](https://github.com/genkigenki/erik37/pull/13)) and NACHTFAHRT ([#9](https://github.com/FartyPants/fm1-nachtfahrt/pull/9)). Melodee's author is happy with the separate build (no room in Melodee itself for now).
 
-**The spyglass works with any firmware.** It needs no change to the firmware and no Big Screen: it shows the notes played through FM-1 Mirror (a keyboard on **MIDI**), on the staff, with the waveform of the FM-1's real sound. With a firmware that doesn't send its screen (NACHTBAR, say) the spyglass still works. On its own, for any MIDI keyboard, it's [MIDI Spyglass](https://github.com/pfkellogg/midi-spyglass).
+**The spyglass works with any firmware.** It needs no change to the firmware and no Big Screen: it shows the notes played through FM-1 Big Screen (a keyboard on **MIDI**), on the staff, with the waveform of the FM-1's real sound. With a firmware that doesn't send its screen (NACHTBAR, say) the spyglass still works. On its own, for any MIDI keyboard, it's [MIDI Spyglass](https://github.com/pfkellogg/midi-spyglass).
 
-**LOOM-8** ([Charles Vestal's groovebox](https://github.com/charlesvestal/fm1-loom)) mirrors its own screen: from LOOM-8 0.13, its [Mirror page](https://charlesvestal.github.io/fm1-loom/mirror/) (Chrome or Edge, over USB) shows it and lets you play the panel from there. It speaks its own messages, not FM-1 Mirror's, and there's no Big Screen build of it here: Charles prefers one LOOM-8, so use its page.
+**LOOM-8** ([Charles Vestal's groovebox](https://github.com/charlesvestal/fm1-loom)) mirrors its own screen: from LOOM-8 0.13, its [Mirror page](https://charlesvestal.github.io/fm1-loom/mirror/) (Chrome or Edge, over USB) shows it and lets you play the panel from there. It speaks its own messages, not FM-1 Big Screen's, and there's no Big Screen build of it here: Charles prefers one LOOM-8, so use its page.
 
-With Keys on SLOOP, a keyboard plays track 1 only: FM-1 Mirror on a Mac sends it on channel 1, while the FM-1's own keys play the selected track. Tested 2026-11-04: on track 1 both play the same sound. To have the keyboard follow the selected track, SLOOP's manual gives GLO > MIDI 2 > IN = CH 1 (not tested yet). Tested with FM-1 Mirror on a Mac.
+With Keys on SLOOP, a keyboard plays track 1 only: FM-1 Big Screen on a Mac sends it on channel 1, while the FM-1's own keys play the selected track. Tested 2026-11-04: on track 1 both play the same sound. To have the keyboard follow the selected track, SLOOP's manual gives GLO > MIDI 2 > IN = CH 1 (not tested yet). Tested with FM-1 Big Screen on a Mac.
 
 ### Newer FM-1s (a different flash chip)
 

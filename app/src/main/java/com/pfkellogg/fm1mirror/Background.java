@@ -11,8 +11,8 @@ import android.os.Build;
 import android.os.IBinder;
 
 /**
- * Keeps FM-1 Mirror alive while another app (flowkey, say) is on screen, so the keyboard keeps playing the FM-1.
- * It does nothing itself: the link and the keyboards stay in MainActivity; this only shows "FM-1 Mirror is on",
+ * Keeps FM-1 Big Screen alive while another app (flowkey, say) is on screen, so the keyboard keeps playing the FM-1.
+ * It does nothing itself: the link and the keyboards stay in MainActivity; this only shows "FM-1 Big Screen is on",
  * which stops Android (Android Go above all) from closing the app to save memory. Its Quit button closes the app.
  */
 public class Background extends Service {
@@ -46,7 +46,7 @@ public class Background extends Service {
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
         Intent quit = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP).setAction(QUIT);
         b.setSmallIcon(R.mipmap.ic_launcher)
-                .setContentTitle("FM-1 Mirror is on")
+                .setContentTitle("FM-1 Big Screen is on")
                 .setContentText("Your keyboard keeps playing the FM-1. Tap to go back.")
                 .setOngoing(true)
                 .setContentIntent(PendingIntent.getActivity(this, 0, open, imm))

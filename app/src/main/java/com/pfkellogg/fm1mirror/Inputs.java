@@ -23,8 +23,8 @@ import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * (From MIDI Spyglass, for FM-1 Mirror + Spyglass: the FM-1 FM-1 Mirror has open is left to it, and "FM-1" under
- * TO plays it through FM-1 Mirror's link, `fm1Out`.)
+ * (From MIDI Spyglass, for FM-1 Big Screen + Spyglass: the FM-1 FM-1 Big Screen has open is left to it, and "FM-1" under
+ * TO plays it through FM-1 Big Screen's link, `fm1Out`.)
  * The MIDI devices, in pairs as in the desktop app (and Synth Spyglass): a keyboard (FROM) and the synths it plays
  * (TO). Several pairs play at once; the spyglass shows one at a time. Every device that sends MIDI is opened to
  * listen (its own Played), so a pair's keyboard is shown as soon as it's picked; a device's MIDI in is opened only
@@ -41,12 +41,12 @@ final class Inputs {
 
     final List<Route> routes = new ArrayList<>();
 
-    /** The FM-1 under TO: FM-1 Mirror's own link to it (it has the FM-1 open for its screen). */
+    /** The FM-1 under TO: FM-1 Big Screen's own link to it (it has the FM-1 open for its screen). */
     static final String FM1 = "FM-1";
     /** The piano built into this app (Synth), out of this device's speakers. */
     static final String PIANO = "Piano (built in)";
     volatile Synth synth;
-    /** Where FM-1 Mirror's link sends (null while there's no FM-1), and the device it has open (skipped here). */
+    /** Where FM-1 Big Screen's link sends (null while there's no FM-1), and the device it has open (skipped here). */
     volatile java.util.function.Consumer<byte[]> fm1Out;
     volatile int fm1Id = -1;
 
@@ -188,7 +188,7 @@ final class Inputs {
         return n;
     }
 
-    /** The devices that can be played (they take MIDI in): the FM-1 first, through FM-1 Mirror's link. */
+    /** The devices that can be played (they take MIDI in): the FM-1 first, through FM-1 Big Screen's link. */
     List<String> tos() {
         List<String> n = new ArrayList<>();
         n.add(FM1);
@@ -197,7 +197,7 @@ final class Inputs {
         return n;
     }
 
-    /** FM-1 Mirror linked to (or lost) an FM-1: its device is left to FM-1 Mirror, or comes back here. */
+    /** FM-1 Big Screen linked to (or lost) an FM-1: its device is left to FM-1 Big Screen, or comes back here. */
     void setFm1(int id, java.util.function.Consumer<byte[]> out) {
         fm1Out = out;
         if (id == fm1Id) return;
@@ -290,7 +290,7 @@ final class Inputs {
         for (Dev d : open.values()) {
             Set<String> t = wants.get(d.name);
             d.targets = t == null ? null : Collections.unmodifiableSet(new TreeSet<>(t));
-            // Only a TO's MIDI in: Android lets one app at a time send to a device, and FM-1 Mirror needs the FM-1's for its
+            // Only a TO's MIDI in: Android lets one app at a time send to a device, and FM-1 Big Screen needs the FM-1's for its
             // screen. (Its hellos make the FM-1 say its sound to every app listening, so the name still comes.)
             boolean need = d.info.getInputPortCount() > 0 && allTo.contains(d.name);
             if (need && d.in == null) d.in = d.device.openInputPort(0);
@@ -318,7 +318,7 @@ final class Inputs {
             }
             if (t.equals(FM1)) {
                 java.util.function.Consumer<byte[]> out = fm1Out;
-                if (out != null) out.accept(m.clone());   // (FM-1 Mirror puts it on the FM-1's channel)
+                if (out != null) out.accept(m.clone());   // (FM-1 Big Screen puts it on the FM-1's channel)
                 continue;
             }
             MidiInputPort in = sinks.get(t);

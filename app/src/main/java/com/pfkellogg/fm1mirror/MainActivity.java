@@ -40,7 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * FM-1 Mirror for Android: the FM-1's screen, big, sent over USB by the FM-1 Big Screen firmware
+ * FM-1 Big Screen for Android: the FM-1's screen, big, sent over USB by the FM-1 Big Screen firmware
  * (the desktop app's src/main.rs). Plug the FM-1 into the phone or tablet, open the app.
  * A keyboard plugged in too plays the FM-1 through it (Keys): Android lets only one app send to the FM-1.
  * What it plays shows in the spyglass (Glass), beside the screen. Over Bluetooth too (Ble), when the
@@ -137,7 +137,7 @@ public class MainActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(12), dp(8), dp(12), dp(8));
-        title = text("FM-1 Mirror", 22, TEXT);
+        title = text("FM-1 Big Screen", 22, TEXT);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -185,11 +185,13 @@ public class MainActivity extends Activity {
         stage.addView(panelScroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(stage, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
         // A TV crops the picture's edges (overscan): keep the FM-1's screen, and its bottom row, inside the safe area.
-        if (getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK))
+        tv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
+        if (tv)
             root.setPadding(dp(24), dp(12), dp(24), dp(40));
         setContentView(root);
+        wakeBar();
         if (prefs.getBoolean("glass", false)) setGlass(true);
-        // Android 13+: ask once to show "FM-1 Mirror is on" (and its Quit) while it plays on in the background.
+        // Android 13+: ask once to show "FM-1 Big Screen is on" (and its Quit) while it plays on in the background.
         if (android.os.Build.VERSION.SDK_INT >= 33 && !prefs.getBoolean("askedNotify", false)
                 && !getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
                 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -253,9 +255,58 @@ public class MainActivity extends Activity {
         letGo();
     }
 
+    // On a TV the bar hides after a few quiet seconds, so the FM-1's screen gets the whole height (4x instead of 3x
+    // on a 1080p TV). Any remote button brings it back; that press only shows the bar, it doesn't also press a button.
+    private static final long BAR_SECONDS = 5;
+    private boolean tv, barAsleep, swallowUp;
+    private View barFocus;
+    private final Runnable sleepBar = () -> {
+        if (full || barAsleep || panelScroll.getVisibility() == View.VISIBLE) return;
+        View f = getCurrentFocus();
+        barFocus = f != null && f.getParent() == bar ? f : null;
+        barAsleep = true;
+        bar.setVisibility(View.GONE);
+    };
+
+    /** The remote was used: show the bar (if it slept) and start counting again. */
+    private void wakeBar() {
+        if (!tv) return;
+        main.removeCallbacks(sleepBar);
+        if (barAsleep) {
+            barAsleep = false;
+            bar.setVisibility(View.VISIBLE);
+            if (barFocus != null) barFocus.requestFocus();
+        }
+        main.postDelayed(sleepBar, BAR_SECONDS * 1000);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        if (tv && !full) {
+            int k = e.getKeyCode();
+            boolean remote = k == android.view.KeyEvent.KEYCODE_DPAD_UP || k == android.view.KeyEvent.KEYCODE_DPAD_DOWN
+                    || k == android.view.KeyEvent.KEYCODE_DPAD_LEFT || k == android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+                    || k == android.view.KeyEvent.KEYCODE_DPAD_CENTER || k == android.view.KeyEvent.KEYCODE_ENTER
+                    || k == android.view.KeyEvent.KEYCODE_MENU;
+            if (remote && e.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                boolean wasAsleep = barAsleep;
+                wakeBar();
+                if (wasAsleep) {
+                    swallowUp = true;
+                    return true;
+                }
+            } else if (remote && e.getAction() == android.view.KeyEvent.ACTION_UP && swallowUp) {
+                swallowUp = false;
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(e);
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        main.removeCallbacks(sleepBar);
         letGo();
         Background.stop(this);
     }
@@ -902,6 +953,7 @@ public class MainActivity extends Activity {
             return;
         }
         if (full) setFull(false);
+        wakeBar(); // (a page to read and buttons to press: the bar stays up while it's there)
         if (ins != null && stepText != null && need.equals(shown)) {
             stepText.setText(ins.progress.step);
             progressBar.setProgress(ins.progress.percent);
@@ -1075,7 +1127,7 @@ public class MainActivity extends Activity {
             fw = firmware;
         }
         // Short: the buttons leave the title little room on a tablet.
-        String t = onBle ? "Bluetooth" : "FM-1 Mirror";
+        String t = onBle ? "Bluetooth" : "FM-1 Big Screen";
         if (l != null && fw != null) t = (onBle ? "BT · " : "") + Codec.firmwareName(fw, id);
         if (!t.contentEquals(title.getText())) title.setText(t);
         // Only over M-VAVE's Open firmware: another firmware with the mirror (ChoralRoot + Big Screen) stays.
@@ -1281,7 +1333,10 @@ public class MainActivity extends Activity {
     /** Full screen: only the FM-1's screen, no bar, no system bars. Tap the screen to come back. */
     private void setFull(boolean on) {
         full = on;
+        barAsleep = false;
         bar.setVisibility(on ? View.GONE : View.VISIBLE);
+        if (on) main.removeCallbacks(sleepBar);
+        else wakeBar();
         if (android.os.Build.VERSION.SDK_INT < 30) {
             // (Android 10 and older, e.g. a Fire TV Stick on Fire OS 6: the older flags)
             getWindow().getDecorView().setSystemUiVisibility(on
@@ -1474,6 +1529,9 @@ public class MainActivity extends Activity {
                 return;
             }
             int side = Math.min(getWidth(), getHeight());
+            // A whole number of screen pixels per FM-1 pixel (3x, 4x, ...): with 3.2x some came out 3 wide and some 4,
+            // and dotted pictures (Erik37's piano) looked streaky. Smooth on keeps the same size, so nothing jumps.
+            if (side >= Codec.SIZE) side = side / Codec.SIZE * Codec.SIZE;
             int x = (getWidth() - side) / 2, y = (getHeight() - side) / 2;
             dst.set(x, y, x + side, y + side);
             boolean sm = smoothOn && smoothReady;

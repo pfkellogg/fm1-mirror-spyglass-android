@@ -23,7 +23,7 @@ final class Played {
 
     Stream stream(String source) { return new Stream(source); }
 
-    /** FM-1 Mirror's own two: a keyboard over straight USB (no MIDI service), and the FM-1's own keys (KEY OUT). */
+    /** FM-1 Big Screen's own two: a keyboard over straight USB (no MIDI service), and the FM-1's own keys (KEY OUT). */
     final Stream keys = new Stream("keys"), fm1 = new Stream("FM-1");
 
     /** One input's running status; SysEx passes through untouched. */
