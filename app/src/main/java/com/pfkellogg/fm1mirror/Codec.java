@@ -174,6 +174,8 @@ final class Codec {
         String rest = info.substring(8);
         boolean bareVersion = rest.length() > 1 && rest.charAt(0) == 'v' && Character.isDigit(rest.charAt(1));
         if (!bareVersion) return rest;
+        // Skiff Atlatl (LIkst4's fork of Skiff, FM-1_742xx, which sends its screen itself) answers the same way.
+        if (identity != null && identity.startsWith("FM-1_742")) return "Skiff Atlatl " + rest;
         return (identity != null && identity.startsWith("FM-1_7") ? "Skiff " : "Felucca ") + rest;
     }
 
