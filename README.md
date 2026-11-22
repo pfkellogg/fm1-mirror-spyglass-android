@@ -6,7 +6,8 @@
 
 The M-VAVE FM-1's tiny 1.54-inch screen, **big on an Android tablet or phone**, live, over USB or
 **Bluetooth**. Play the FM-1 from a USB keyboard through the same app, and watch every note or chord
-you play, on the keyboard or on the FM-1's own keys, in a **spyglass** beside the screen.
+you play, on the keyboard or on the FM-1's own keys, in a **spyglass** beside the screen. And from 1.6.8, a built-in
+**Mellotron** (flute, strings, choir) that the FM-1's own keys play, out of the tablet.
 
 ![FM-1 Big Screen + Spyglass on a tablet: the FM-1's screen big, and the spyglass showing A3](docs/screenshot.png)
 
@@ -138,7 +139,9 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
 - **Mellotron, from 1.6.8:** the **Mellotron** button turns a Mellotron on: the FM-1's own keys play it, out of the
   tablet's or TV's own sound, while the FM-1 plays its own sound too (turn the FM-1 down to hear only the Mellotron).
   From 1.6.9 the button steps through its three classic sounds, **flute**, **strings** and **choir**, then off (it
-  remembers the last); the flute now sounds like the 1960s tape flute: darker, hollow, breathy and wobbly.
+  remembers the last). The flute was tuned in 1.6.9 against a real Mellotron flute, by ear and by measurement (its
+  recordings aren't in the app): a wooden, hollow tone with the breath inside it, and the flute player's vibrato, about
+  5 times a second, in pitch and loudness.
   Like the real instrument, every key has a recording of its own (35 keys, G2 to F5), each 8 seconds long, and a key held
   longer simply runs out; it doesn't follow how hard you play. Notes above or below are moved by octaves into those 35
   keys, and the tape machine adds its slow wow and quick flutter. It needs the FM-1's **KEY OUT** on (see the spyglass,
