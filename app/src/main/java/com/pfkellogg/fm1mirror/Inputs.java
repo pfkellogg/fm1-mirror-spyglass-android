@@ -308,6 +308,13 @@ final class Inputs {
     private void forward(String from, Set<String> to, byte[] data, int offset, int count) {
         if (count == 0 || (data[offset] & 0xff) >= 0xf0) return;
         byte[] m = java.util.Arrays.copyOfRange(data, offset, offset + count);
+        // The Mellotron on: the keyboard plays it, and its notes stay off the FM-1 (see Mellotron.withoutNotes).
+        Mellotron mel = Mellotron.active;
+        byte[] toFm1 = m;
+        if (mel != null) {
+            mel.keys(m, 0, m.length);
+            toFm1 = Mellotron.withoutNotes(m);
+        }
         byte[] one = null;
         for (String t : to) {
             if (t.equals(from)) continue;
@@ -318,15 +325,16 @@ final class Inputs {
             }
             if (t.equals(FM1)) {
                 java.util.function.Consumer<byte[]> out = fm1Out;
-                if (out != null) out.accept(m.clone());   // (FM-1 Big Screen puts it on the FM-1's channel)
+                if (out != null && toFm1.length > 0) out.accept(toFm1.clone());   // (FM-1 Big Screen puts it on the FM-1's channel)
                 continue;
             }
             MidiInputPort in = sinks.get(t);
             if (in == null) continue;
             byte[] out = m;
             if (isFm1(t)) {
+                if (toFm1.length == 0) continue;
                 if (one == null) {
-                    one = m.clone();
+                    one = toFm1.clone();
                     for (int i = 0; i < one.length; i++) {
                         int b = one[i] & 0xff;
                         if (b >= 0x80 && b < 0xf0) one[i] = (byte) (b & 0xf0);

@@ -581,8 +581,16 @@ public class MainActivity extends Activity {
                 byte[] pass = filter.pass(data, offset, count, channel);
                 if (pass.length == 0) return;
                 played.keys.feed(pass, 0, pass.length);
+                // the Mellotron on: the keyboard plays it, and its notes stay off the FM-1
+                Mellotron mel = Mellotron.active;
+                byte[] toFm1 = pass;
+                if (mel != null) {
+                    mel.keys(pass, 0, pass.length);
+                    toFm1 = Mellotron.withoutNotes(pass);
+                    if (toFm1.length == 0) return;
+                }
                 try {
-                    l.send(pass);
+                    l.send(toFm1);
                 } catch (IOException ignored) {
                     // the FM-1 went: the link notices
                 }

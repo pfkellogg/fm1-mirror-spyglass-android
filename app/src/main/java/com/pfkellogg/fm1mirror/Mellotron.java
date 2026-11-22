@@ -266,7 +266,34 @@ final class Mellotron {
         int status, d1 = -1;
     }
 
-    private final Parser fm1 = new Parser(), demo = new Parser();
+    private final Parser fm1 = new Parser(), demo = new Parser(), keys = new Parser();
+
+    /** A keyboard's MIDI (one FM-1 Big Screen passes on, over the MIDI pairs or straight USB): it plays the Mellotron
+     *  too, through its own parser. */
+    void keys(byte[] m, int offset, int count) {
+        parse(keys, m, offset, count);
+    }
+
+    /** `m` without its Note On and Note Off messages (running status followed); everything else as it is. With the
+     *  Mellotron on, a keyboard's notes play it instead of the FM-1 (the FM-1's own sound, a piano say, played under
+     *  it); knobs, pedal and the rest still go to the FM-1. */
+    static byte[] withoutNotes(byte[] m) {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(m.length);
+        int status = 0;
+        for (byte x : m) {
+            int b = x & 0xff;
+            if (b >= 0xf8) out.write(b);
+            else if (b >= 0x80) {
+                status = b;
+                int t = b & 0xf0;
+                if (t != 0x80 && t != 0x90) out.write(b);
+            } else {
+                int t = status & 0xf0;
+                if (t != 0x80 && t != 0x90) out.write(b);
+            }
+        }
+        return out.toByteArray();
+    }
 
     /** Whole or partial MIDI messages, from the FM-1's thread; SysEx (its screen) is skipped. */
     void midi(byte[] m, int offset, int count) {

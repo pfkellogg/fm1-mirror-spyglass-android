@@ -139,7 +139,8 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
 - **Mellotron, from 1.6.8:** the **Mellotron** button turns a Mellotron on: the FM-1's own keys play it, out of the
   tablet's or TV's own sound, while the FM-1 plays its own sound too (turn the FM-1 down to hear only the Mellotron).
   From 1.6.9 the button steps through its three classic sounds, **flute**, **strings** and **choir**, then off (it
-  remembers the last). The flute was tuned in 1.6.9 against a real Mellotron flute, by ear and by measurement (its
+  remembers the last). From 1.6.10 a keyboard plugged in plays it too: while the Mellotron is on, the keyboard's notes play
+  it instead of the FM-1 (no FM-1 piano under it), and its knobs and pedal still go to the FM-1. The flute was tuned in 1.6.9 against a real Mellotron flute, by ear and by measurement (its
   recordings aren't in the app): a wooden, hollow tone with the breath inside it, and the flute player's vibrato, about
   5 times a second, in pitch and loudness.
   Like the real instrument, every key has a recording of its own (35 keys, G2 to F5), each 8 seconds long, and a key held
