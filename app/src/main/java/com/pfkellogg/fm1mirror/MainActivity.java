@@ -165,9 +165,10 @@ public class MainActivity extends Activity {
         bar.addView(mirrorButton);
         smoothButton = button("", v -> toggleSmooth());
         bar.addView(smoothButton);
-        mellotronButton = button("", v -> setMellotron(mellotron == null));
+        mellotronButton = button("", v -> nextMellotron());
         bar.addView(mellotronButton);
-        setMellotron(prefs.getBoolean("mellotron", false));
+        // (1.6.8 remembered just on / off: on was the flute)
+        setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
         lookButton = button(look.label, v -> nextLook());
         bar.addView(lookButton);
@@ -1345,20 +1346,33 @@ public class MainActivity extends Activity {
         screen.invalidate();
     }
 
-    /** The Mellotron on or off (remembered): on, the FM-1's own keys play its flute strips out of this device. */
-    private void setMellotron(boolean on) {
-        if (on && mellotron == null) {
-            Mellotron m = new Mellotron();
-            m.start(this, "flute");
-            mellotron = m;
-            played.fm1.tap = m::midi;
-        } else if (!on && mellotron != null) {
+    /** The Mellotron's sounds, in the order the button steps through them (then off). */
+    private static final String[] MELLOTRON_SOUNDS = {"flute", "strings", "choir"};
+    private String mellotronSound = "";
+
+    /** The button: off, flute, strings, choir, off again. */
+    private void nextMellotron() {
+        int i = java.util.Arrays.asList(MELLOTRON_SOUNDS).indexOf(mellotronSound);
+        setMellotron(i + 1 < MELLOTRON_SOUNDS.length ? MELLOTRON_SOUNDS[i + 1] : "");
+    }
+
+    /** The Mellotron playing `sound` ("" for off; remembered): the FM-1's own keys play it, out of this device. */
+    private void setMellotron(String sound) {
+        if (!java.util.Arrays.asList(MELLOTRON_SOUNDS).contains(sound)) sound = "";
+        if (mellotron != null && !sound.equals(mellotronSound)) {
             played.fm1.tap = null;
             mellotron.stop();
             mellotron = null;
         }
-        prefs.edit().putBoolean("mellotron", on).apply();
-        mellotronButton.setText(on ? "Mellotron: on" : "Mellotron: off");
+        if (!sound.isEmpty() && mellotron == null) {
+            Mellotron m = new Mellotron();
+            m.start(this, sound);
+            mellotron = m;
+            played.fm1.tap = m::midi;
+        }
+        mellotronSound = sound;
+        prefs.edit().putString("mellotronSound", sound).remove("mellotron").apply();
+        mellotronButton.setText(sound.isEmpty() ? "Mellotron: off" : "Mellotron: " + sound);
     }
 
     private void toggleSmooth() {

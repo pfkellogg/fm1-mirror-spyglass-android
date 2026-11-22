@@ -24,8 +24,9 @@ import java.util.List;
  * Like the real one: one recording per key over 35 keys, G2 (43) to F5 (77), each 8 seconds long, which simply runs
  * out if held longer; no velocity; a key let go stops its strip quickly. Notes outside the 35 keys are moved by
  * octaves into them. On top, the tape machine's own slow wow and fast flutter, a little different for each strip.
- * The sounds are in assets/mellotron/SET/043.flac ... 077.flac (mono, 44.1 kHz): "flute" is made from scratch by
- * tools/make_mellotron_flute.py (no recordings, so nothing anyone else owns).
+ * The sounds are in assets/mellotron/SET/043.flac ... 077.flac (mono, 44.1 kHz), all made from scratch (no recordings,
+ * so nothing anyone else owns): "flute" by tools/make_mellotron_flute.py, "strings" and "choir" by
+ * tools/make_mellotron_sounds.py.
  */
 final class Mellotron {
     private static final int RATE = 44100, VOICES = 16, BLOCK = 256, LOW = 43, HIGH = 77;
