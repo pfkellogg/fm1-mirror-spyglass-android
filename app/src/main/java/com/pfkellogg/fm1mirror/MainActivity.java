@@ -110,7 +110,9 @@ public class MainActivity extends Activity {
     private LinearLayout bar, panel;
     private FrameLayout stage;
     private ScrollView panelScroll;
-    private Button lookButton, keysButton, updateButton, mirrorButton, smoothButton, showMirror;
+    private Button lookButton, keysButton, updateButton, mirrorButton, smoothButton, showMirror, mellotronButton;
+    /** The built-in Mellotron while it's on: the FM-1's keys play it, out of this device's own sound. */
+    private Mellotron mellotron;
     /** The FM-1's screen shows; and with the jaggies taken off (off: exactly as it sends it). */
     private boolean mirrorOn = true, smoothOn = true;
     private TextView title;
@@ -163,6 +165,9 @@ public class MainActivity extends Activity {
         bar.addView(mirrorButton);
         smoothButton = button("", v -> toggleSmooth());
         bar.addView(smoothButton);
+        mellotronButton = button("", v -> setMellotron(mellotron == null));
+        bar.addView(mellotronButton);
+        setMellotron(prefs.getBoolean("mellotron", false));
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
         lookButton = button(look.label, v -> nextLook());
         bar.addView(lookButton);
@@ -311,6 +316,7 @@ public class MainActivity extends Activity {
         main.removeCallbacks(sleepBar);
         letGo();
         Background.stop(this);
+        if (mellotron != null) mellotron.stop();
     }
 
     /** The notification's Quit: close the app. */
@@ -1337,6 +1343,22 @@ public class MainActivity extends Activity {
         prefs.edit().putBoolean("mirror", on).apply();
         showMirrors();
         screen.invalidate();
+    }
+
+    /** The Mellotron on or off (remembered): on, the FM-1's own keys play its flute strips out of this device. */
+    private void setMellotron(boolean on) {
+        if (on && mellotron == null) {
+            Mellotron m = new Mellotron();
+            m.start(this, "flute");
+            mellotron = m;
+            played.fm1.tap = m::midi;
+        } else if (!on && mellotron != null) {
+            played.fm1.tap = null;
+            mellotron.stop();
+            mellotron = null;
+        }
+        prefs.edit().putBoolean("mellotron", on).apply();
+        mellotronButton.setText(on ? "Mellotron: on" : "Mellotron: off");
     }
 
     private void toggleSmooth() {

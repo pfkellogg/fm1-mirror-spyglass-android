@@ -26,6 +26,10 @@ final class Played {
     /** FM-1 Big Screen's own two: a keyboard over straight USB (no MIDI service), and the FM-1's own keys (KEY OUT). */
     final Stream keys = new Stream("keys"), fm1 = new Stream("FM-1");
 
+    interface Tap {
+        void feed(byte[] m, int offset, int count);
+    }
+
     /** One input's running status; SysEx passes through untouched. */
     final class Stream {
         private final String source;
@@ -34,11 +38,16 @@ final class Played {
         private final byte[] sx = new byte[64];
         private int sxLen = -1;
 
+        /** Also gets everything fed here (the built-in Mellotron listens to the FM-1's keys). */
+        volatile Tap tap;
+
         Stream(String source) {
             this.source = source;
         }
 
         void feed(byte[] m, int offset, int count) {
+            Tap t = tap;
+            if (t != null) t.feed(m, offset, count);
             synchronized (Played.this) {
                 for (int i = offset; i < offset + count; i++) {
                     int b = m[i] & 0xff;
