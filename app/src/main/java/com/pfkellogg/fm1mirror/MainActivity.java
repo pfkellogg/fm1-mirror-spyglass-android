@@ -169,6 +169,7 @@ public class MainActivity extends Activity {
         bar.addView(mellotronButton);
         // (1.6.8 remembered just on / off: on was the flute)
         setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
+        Demo.startIfDebug(this, played.keys);
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
         lookButton = button(look.label, v -> nextLook());
         bar.addView(lookButton);
@@ -1365,8 +1366,8 @@ public class MainActivity extends Activity {
             mellotron = null;
         }
         if (!sound.isEmpty() && mellotron == null) {
-            Mellotron m = new Mellotron();
-            m.start(this, sound);
+            Mellotron m = new Mellotron(sound);
+            m.start(this);
             mellotron = m;
             played.fm1.tap = m::midi;
         }

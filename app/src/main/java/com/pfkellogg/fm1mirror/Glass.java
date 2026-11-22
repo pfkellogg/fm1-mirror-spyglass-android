@@ -392,6 +392,10 @@ final class Glass extends FrameLayout {
             String said = fm1Said.get(), s = null;
             if (fm1Plays) s = said != null ? said : hearing() ? "FM-1" : null;
             if (s == null) s = played.sound();
+            // The Mellotron on: who plays what ("FM-1 → Mellotron flute"), and the waveform keeps moving with it.
+            Mellotron mel = Mellotron.active;
+            if (mel != null && fm1Plays) s = "FM-1 \u2192 Mellotron " + mel.sound;
+            if (mel != null && wave && mel.sounding()) invalidate();
             // With several pairs, the header says whose: "Keystation 49 MK3 · T1 FM6 TINE EP".
             if (pairName != null) s = s == null ? pairName : pairName + " \u00b7 " + s;
             if (!soundOn) s = null;
@@ -532,6 +536,12 @@ final class Glass extends FrameLayout {
 
     /** The waveform: the FM-1's real sound while it's heard (a flat line while it's quiet), else drawn from the notes. */
     private float[] waveNow() {
+        Mellotron m = Mellotron.active;
+        if (m != null && m.sounding()) {                       // the Mellotron's own sound, while it plays
+            double hz = hz();
+            float[] w = hz > 0 ? m.wave(hz) : null;
+            if (w != null) return w;
+        }
         if (fm1Plays && hearing()) {
             double hz = hz();
             return hz > 0 ? scope.wave(hz) : null;

@@ -34,6 +34,11 @@ android {
         release {
             signingConfig keys.storeFile ? signingConfigs.release : null
         }
+        // A debug build installs beside the real app; it can be played from the computer for demo videos (see Demo.java)
+        debug {
+            applicationIdSuffix ".demo"
+            versionNameSuffix "-demo"
+        }
     }
     sourceSets {
         // The same firmware package the desktop app installs.

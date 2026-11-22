@@ -32,14 +32,31 @@ final class Mellotron {
     private static final int RATE = 44100, VOICES = 16, BLOCK = 256, LOW = 43, HIGH = 77;
     private static final String TAG = "FM1Mirror";
 
+    /** The Mellotron playing now (null: off), for the spyglass: its name and its sound's last moment. */
+    static volatile Mellotron active;
+    final String sound;
+    /** The last moment of what it played (oldest first from `head`), for the spyglass's waveform. */
+    private static final int KEEP = 8192;
+    private final float[] ring = new float[KEEP];
+    private int head;
+    private long heardAt;
+    private volatile int ringRate = RATE;
+    static boolean DIAG;
+    private long diagMix, diagWrite, diagAt;
+    private int diagVoices;
+
+    Mellotron(String sound) {
+        this.sound = sound;
+    }
+
     private final short[][] strips = new short[HIGH + 1][];
     private volatile boolean loaded, stop;
     private final List<Voice> voices = new ArrayList<>();
     private Thread player;
-    private int status, d1 = -1;
     private final java.util.Random random = new java.util.Random();
     /** How much the tape machine wobbles, as a share of the pitch (0.0015 = about 2.6 cents). */
-    private static final double WOW = 0.0015, FLUTTER = 0.0004;
+    // (1.6.8-1.6.9 added a tape wow and flutter of their own here, on top of the strips' recorded wobble: together,
+    // seasick on fast notes. The strips carry it now.)
 
     private static final class Voice {
         final int key;
@@ -58,8 +75,10 @@ final class Mellotron {
     }
 
     /** Loads the strips and starts the sound (each on a thread of its own). */
-    void start(Context ctx, String set) {
+    void start(Context ctx) {
+        String set = sound;
         if (player != null) return;
+        active = this;
         Context app = ctx.getApplicationContext();
         Thread load = new Thread(() -> load(app, set), "Mellotron strips");
         load.setDaemon(true);
@@ -71,21 +90,110 @@ final class Mellotron {
 
     void stop() {
         stop = true;
+        if (active == this) active = null;
+    }
+
+    /** Sounding now (something louder than silence in the last quarter second). */
+    synchronized boolean sounding() {
+        return android.os.SystemClock.uptimeMillis() - heardAt < 250;
+    }
+
+    /**
+     * The last 20 ms of its sound, from where it crosses zero going up (within one period at `hz`), so it stands still
+     * like an oscilloscope's; the loudest point ±1; null while it's quiet.
+     */
+    synchronized float[] wave(double hz) {
+        if (!sounding()) return null;
+        int span = Math.round(0.02f * ringRate), period = (int) (ringRate / Math.max(30.0, hz));
+        int last = KEEP - span, first = Math.max(1, last - period - 1), start = last;
+        for (int i = last; i >= first; i--)
+            if (ring[(head + i - 1) % KEEP] < 0 && ring[(head + i) % KEEP] >= 0) {
+                start = i;
+                break;
+            }
+        float[] w = new float[span];
+        float peak = 0;
+        for (int i = 0; i < span; i++) {
+            w[i] = ring[(head + start + i) % KEEP];
+            peak = Math.max(peak, Math.abs(w[i]));
+        }
+        if (peak < 0.002f) return null;
+        for (int i = 0; i < span; i++) w[i] /= peak;
+        return w;
     }
 
     // ---- the strips
 
+    /** Sounds loaded before, kept while there's memory to spare (Android drops them when it needs it). */
+    private static final java.util.Map<String, java.lang.ref.SoftReference<short[][]>> CACHE = new java.util.HashMap<>();
+
+    /** The 35 strips, from the cache, else decoded four at a time (one by one took 20 s on a small tablet). */
     private void load(Context ctx, String set) {
-        int n = 0;
-        for (int key = LOW; key <= HIGH; key++) {
-            short[] s = decode(ctx, String.format(java.util.Locale.US, "mellotron/%s/%03d.flac", set, key));
-            if (s != null) {
-                strips[key] = s;
-                n++;
+        long t0 = android.os.SystemClock.uptimeMillis();
+        short[][] got;
+        synchronized (CACHE) {
+            java.lang.ref.SoftReference<short[][]> r = CACHE.get(set);
+            got = r == null ? null : r.get();
+        }
+        if (got == null) {
+            short[][] all = new short[HIGH + 1][];
+            java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+            for (int key = LOW; key <= HIGH; key++) {
+                final int k = key;
+                pool.execute(() -> all[k] = strip(ctx, set, k));
+            }
+            pool.shutdown();
+            try {
+                pool.awaitTermination(2, java.util.concurrent.TimeUnit.MINUTES);
+            } catch (InterruptedException ignored) {
+            }
+            got = all;
+            synchronized (CACHE) {
+                CACHE.put(set, new java.lang.ref.SoftReference<>(all));
             }
         }
+        int n = 0;
+        for (int key = LOW; key <= HIGH; key++) {
+            if (got[key] != null) n++;
+            strips[key] = got[key];
+        }
         loaded = true;
-        Log.i(TAG, "mellotron: " + n + " strips of '" + set + "' loaded");
+        Log.i(TAG, "mellotron: " + n + " strips of '" + set + "' loaded in " + (android.os.SystemClock.uptimeMillis() - t0) + " ms");
+    }
+
+    /**
+     * One strip: from the app's cache folder when it was decoded before (a fraction of a second), else decoded from
+     * the assets and kept there (a small tablet decodes FLAC slowly: a whole sound took half a minute).
+     */
+    private static short[] strip(Context ctx, String set, int key) {
+        java.io.File f = new java.io.File(ctx.getCacheDir(), String.format(java.util.Locale.US, "mellotron/%s/%03d.pcm", set, key));
+        if (f.length() > 0) {
+            try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
+                ByteBuffer b = ByteBuffer.allocate((int) f.length()).order(ByteOrder.LITTLE_ENDIAN);
+                in.getChannel().read(b);
+                b.flip();
+                short[] out = new short[b.remaining() / 2];
+                b.asShortBuffer().get(out);
+                return out;
+            } catch (java.io.IOException e) {
+                Log.w(TAG, "mellotron: cache " + f, e);
+            }
+        }
+        short[] s = decode(ctx, String.format(java.util.Locale.US, "mellotron/%s/%03d.flac", set, key));
+        if (s != null) {
+            f.getParentFile().mkdirs();
+            java.io.File tmp = new java.io.File(f.getPath() + ".tmp");
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(tmp)) {
+                ByteBuffer b = ByteBuffer.allocate(s.length * 2).order(ByteOrder.LITTLE_ENDIAN);
+                b.asShortBuffer().put(s);
+                out.getChannel().write(b);
+                out.close();
+                if (!tmp.renameTo(f)) tmp.delete();
+            } catch (java.io.IOException e) {
+                tmp.delete();
+            }
+        }
+        return s;
     }
 
     /** A sound file in the assets, as mono 16-bit samples (the strips are mono, 44.1 kHz). */
@@ -105,22 +213,22 @@ final class Mellotron {
             ShortBuffer out = ShortBuffer.allocate(RATE * 9);
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
             boolean inDone = false, outDone = false;
+            // Feed every free input buffer without waiting, then take what's decoded (waiting up to 10 ms for each
+            // piece, as before, made 35 strips take 20 to 40 s on a small tablet).
             while (!outDone) {
-                if (!inDone) {
-                    int i = codec.dequeueInputBuffer(10000);
-                    if (i >= 0) {
-                        ByteBuffer b = codec.getInputBuffer(i);
-                        int got = ex.readSampleData(b, 0);
-                        if (got < 0) {
-                            codec.queueInputBuffer(i, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                            inDone = true;
-                        } else {
-                            codec.queueInputBuffer(i, 0, got, ex.getSampleTime(), 0);
-                            ex.advance();
-                        }
+                int i;
+                while (!inDone && (i = codec.dequeueInputBuffer(0)) >= 0) {
+                    ByteBuffer b = codec.getInputBuffer(i);
+                    int got = ex.readSampleData(b, 0);
+                    if (got < 0) {
+                        codec.queueInputBuffer(i, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                        inDone = true;
+                    } else {
+                        codec.queueInputBuffer(i, 0, got, ex.getSampleTime(), 0);
+                        ex.advance();
                     }
                 }
-                int o = codec.dequeueOutputBuffer(info, 10000);
+                int o = codec.dequeueOutputBuffer(info, 2000);
                 if (o >= 0) {
                     ShortBuffer pcm = codec.getOutputBuffer(o).order(ByteOrder.nativeOrder()).asShortBuffer();
                     while (pcm.remaining() >= channels && out.hasRemaining()) {
@@ -153,27 +261,44 @@ final class Mellotron {
 
     // ---- MIDI in (the FM-1's keys)
 
+    /** One source's running status (each source has its own: bytes of two sources mixed would make up notes). */
+    private static final class Parser {
+        int status, d1 = -1;
+    }
+
+    private final Parser fm1 = new Parser(), demo = new Parser();
+
     /** Whole or partial MIDI messages, from the FM-1's thread; SysEx (its screen) is skipped. */
-    synchronized void midi(byte[] m, int offset, int count) {
+    void midi(byte[] m, int offset, int count) {
+        parse(fm1, m, offset, count);
+    }
+
+    /** Notes from the demo (debug builds), kept apart from the FM-1's stream: a demo note landing in the middle of one
+     *  of the FM-1's screen messages turned the rest of it into stray notes and note-offs (cut-outs). */
+    void demo(byte[] m) {
+        parse(demo, m, 0, m.length);
+    }
+
+    private synchronized void parse(Parser p, byte[] m, int offset, int count) {
         for (int i = offset; i < offset + count; i++) {
             int b = m[i] & 0xff;
             if (b >= 0xf8) continue;
             if (b >= 0x80) {
-                status = b < 0xf0 ? b : 0;
-                d1 = -1;
+                p.status = b < 0xf0 ? b : 0;
+                p.d1 = -1;
                 continue;
             }
-            if (status == 0) continue;
-            int type = status & 0xf0;
+            if (p.status == 0) continue;
+            int type = p.status & 0xf0;
             if (type == 0xc0 || type == 0xd0) continue;
-            if (d1 < 0) {
-                d1 = b;
+            if (p.d1 < 0) {
+                p.d1 = b;
                 continue;
             }
-            if (type == 0x90 && b > 0) noteOn(d1);
-            else if (type == 0x80 || type == 0x90) noteOff(d1);
-            else if (type == 0xb0 && (d1 == 120 || d1 == 123)) allOff();
-            d1 = -1;
+            if (type == 0x90 && b > 0) noteOn(p.d1);
+            else if (type == 0x80 || type == 0x90) noteOff(p.d1);
+            else if (type == 0xb0 && (p.d1 == 120 || p.d1 == 123)) allOff();
+            p.d1 = -1;
         }
     }
 
@@ -223,20 +348,33 @@ final class Mellotron {
         return best;
     }
 
-    private AudioTrack track(Context ctx) {
-        int min = AudioTrack.getMinBufferSize(RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        int size = Math.max(min, BLOCK * 4);
+    /** This device's own output rate (48 kHz on most): played at it, the sound takes Android's quick path. Playing
+     *  44.1 kHz on a 48 kHz device made Android convert it, on its slow path, and keys answered late. */
+    static int outRate(Context ctx) {
+        try {
+            String r = ((AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE)).getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
+            int n = r == null ? 0 : Integer.parseInt(r);
+            return n >= 22050 && n <= 192000 ? n : RATE;
+        } catch (RuntimeException e) {
+            return RATE;
+        }
+    }
+
+    private AudioTrack track(Context ctx, int out) {
+        int min = AudioTrack.getMinBufferSize(out, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        // four times the smallest: chords of 6 to 8 voices on a small tablet ran it dry while the screen drew (gaps)
+        int size = Math.max(4 * min, BLOCK * 16);
         AudioTrack t;
         if (Build.VERSION.SDK_INT >= 26) {
             t = new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-                    .setAudioFormat(new AudioFormat.Builder().setSampleRate(RATE)
+                    .setAudioFormat(new AudioFormat.Builder().setSampleRate(out)
                             .setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
                     .setBufferSizeInBytes(size).setTransferMode(AudioTrack.MODE_STREAM)
                     .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY).build();
         } else {
-            t = new AudioTrack(AudioManager.STREAM_MUSIC, RATE, AudioFormat.CHANNEL_OUT_MONO,
+            t = new AudioTrack(AudioManager.STREAM_MUSIC, out, AudioFormat.CHANNEL_OUT_MONO,
                     AudioFormat.ENCODING_PCM_16BIT, size, AudioTrack.MODE_STREAM);
         }
         AudioDeviceInfo own = ownOutput(ctx);
@@ -245,15 +383,20 @@ final class Mellotron {
     }
 
     private void play(Context ctx) {
-        AudioTrack track = track(ctx);
+        // audio priority, as Android means for music: at normal priority strings and choir chords cut out
+        android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+        int out_ = outRate(ctx);
+        ringRate = out_;
+        double step = (double) RATE / out_;                                  // the strips are 44.1 kHz
+        AudioTrack track = track(ctx, out_);
+        Log.i(TAG, "mellotron: playing at " + out_ + " Hz");
         track.play();
         AudioDeviceInfo was = ownOutput(ctx);
         long nextCheck = 0;
         float[] mix = new float[BLOCK];
         short[] out = new short[BLOCK];
-        float attack = 1f / (0.004f * RATE);                                 // the tape meets the head: 4 ms
-        float fade = (float) Math.pow(0.001, 1.0 / (0.12 * RATE));          // let go: the head lifts, gone in 0.12 s
-        double dt = 1.0 / RATE;
+        float attack = 1f / (0.004f * out_);                                 // the tape meets the head: 4 ms
+        float fade = (float) Math.pow(0.001, 1.0 / (0.12 * out_));          // let go: the head lifts, gone in 0.12 s
         while (!stop) {
             // headphones plugged in or out: follow them (the system would send us to the FM-1's USB instead)
             long now = android.os.SystemClock.uptimeMillis();
@@ -265,42 +408,71 @@ final class Mellotron {
                     was = own;
                 }
             }
+            long w0 = System.nanoTime();
             java.util.Arrays.fill(mix, 0f);
             synchronized (this) {
+                // lean on purpose: locals, no doubles per sample (the first version took 20 ms or more for a 5 ms
+                // block with six voices on a small tablet, and the sound ran dry 25 times a second)
                 for (int i = voices.size() - 1; i >= 0; i--) {
                     Voice v = voices.get(i);
+                    final short[] d = v.data;
+                    final int last = d.length - 1;
+                    double pos = v.pos;
+                    float env = v.env, target = v.target;
+                    final boolean rel = v.released;
                     boolean done = false;
                     for (int k = 0; k < BLOCK; k++) {
-                        int p = (int) v.pos;
-                        if (p + 1 >= v.data.length) {
+                        int p = (int) pos;
+                        if (p >= last) {
                             done = true;
                             break;
                         }
-                        if (v.released) {
-                            v.env *= fade;
-                            if (v.env < 0.0005f) {
+                        if (rel) {
+                            env *= fade;
+                            if (env < 0.0005f) {
                                 done = true;
                                 break;
                             }
-                        } else if (v.env < v.target) {
-                            v.env = Math.min(v.target, v.env + attack);
+                        } else if (env < target) {
+                            env = Math.min(target, env + attack);
                         }
-                        float f = (float) (v.pos - p);
-                        mix[k] += (v.data[p] * (1 - f) + v.data[p + 1] * f) * v.env;
-                        double wobble = WOW * Math.sin(2 * Math.PI * 0.55 * v.t + v.wowPhase)
-                                + FLUTTER * Math.sin(2 * Math.PI * 6.5 * v.t + v.flutterPhase);
-                        v.pos += 1 + wobble;
-                        v.t += dt;
+                        float f = (float) (pos - p), a = d[p];
+                        mix[k] += (a + (d[p + 1] - a) * f) * env;
+                        pos += step;
                     }
+                    v.pos = pos;
+                    v.env = env;
                     if (done) voices.remove(i);
                 }
             }
+            float loud = 0;
             for (int k = 0; k < BLOCK; k++) {
-                float x = mix[k] * 0.45f / 32768f;
-                x = x / (1 + Math.abs(x));                              // soft, never clips
+                // Headroom for chords, squeezed only near the top: before, every chord was squeezed (x / (1 + |x|)),
+                // about 10% distortion with three notes, which buzzed like a lawn mower.
+                float x = mix[k] * 0.3f / 32768f, a = Math.abs(x);
+                if (a > 0.6f) x = Math.signum(x) * (0.6f + 0.4f * (float) Math.tanh((a - 0.6f) / 0.4f));
                 out[k] = (short) (x * 32767);
+                loud = Math.max(loud, Math.abs(x));
             }
+            synchronized (this) {
+                for (int k = 0; k < BLOCK; k++) {
+                    ring[head] = out[k] / 32768f;
+                    head = (head + 1) % KEEP;
+                }
+                if (loud > 0.002f) heardAt = android.os.SystemClock.uptimeMillis();
+            }
+            long w1 = System.nanoTime();
             track.write(out, 0, BLOCK);
+            long w2 = System.nanoTime();
+            // (diagnostics, debug builds: blocks that took long to mix, waits on write, underruns, once a second)
+            if (DIAG) {
+                diagMix = Math.max(diagMix, w1 - w0); diagWrite = Math.max(diagWrite, w2 - w1); diagVoices = Math.max(diagVoices, voices.size());
+                if (now >= diagAt) {
+                    int u = Build.VERSION.SDK_INT >= 24 ? track.getUnderrunCount() : -1;
+                    Log.i(TAG, "mellotron diag: mix max " + diagMix / 1000 + " us, write max " + diagWrite / 1000 + " us, voices " + diagVoices + ", underruns " + u + ", buffer " + (Build.VERSION.SDK_INT >= 24 ? track.getBufferSizeInFrames() : -1));
+                    diagAt = now + 1000; diagMix = diagWrite = 0; diagVoices = 0;
+                }
+            }
         }
         track.stop();
         track.release();
