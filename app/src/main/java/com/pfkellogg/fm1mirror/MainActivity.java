@@ -669,7 +669,7 @@ public class MainActivity extends Activity {
         int ch = keysChannel();
         items.add("Channel: " + (ch == 0 ? "as they come" : String.valueOf(ch)) + " (tap to change)");
         int none = items.size() - 2, channels = items.size() - 1;
-        new AlertDialog.Builder(this)
+        dialog()
                 .setTitle("Play the FM-1 from")
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     if (which == channels) {
@@ -806,7 +806,7 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         scroll.addView(list);
         fillMidi(list);
-        AlertDialog.Builder b = new AlertDialog.Builder(this)
+        AlertDialog.Builder b = dialog()
                 .setTitle("MIDI: keyboards, each with what it plays")
                 .setView(scroll)
                 .setPositiveButton("Done", null);
@@ -901,7 +901,7 @@ public class MainActivity extends Activity {
         items[0] = "As they come (each note on its own channel)";
         for (int c = 1; c <= 16; c++)
             items[c] = "Channel " + c + (c == 1 ? " (the FM-1's own: the usual one)" : "");
-        new AlertDialog.Builder(this)
+        dialog()
                 .setTitle("Send the keyboard on")
                 .setSingleChoiceItems(items, keysChannel(), (d, which) -> {
                     prefs.edit().putInt("keysChannel", which).apply();
@@ -1256,7 +1256,7 @@ public class MainActivity extends Activity {
         Fm1Port l = link;
         boolean onBle = l != null && Ble.isBluetooth(l.info);
         String other = bleOther;
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("FM-1 over Bluetooth");
+        AlertDialog.Builder b = dialog().setTitle("FM-1 over Bluetooth");
         if (onBle && !bleLinked) {
             b.setMessage("This tablet is trying to reach \"" + l.name + "\" over Bluetooth, but the FM-1 doesn't answer the radio, so there's no connection yet."
                     + "\n\nOn the FM-1, hold HOME and press GLO: BLUETOOTH should be ON and BLE ROLE DEVICE, and it should say WAITING FOR DEVICE. If it says it's connected, another phone, tablet or computer has it.")
@@ -1311,7 +1311,7 @@ public class MainActivity extends Activity {
     }
 
     private void confirmUpdate() {
-        AlertDialog dialog = new AlertDialog.Builder(this)
+        AlertDialog dialog = dialog()
                 .setTitle("Update the FM-1's Big Screen firmware?")
                 .setMessage("This app has a newer Big Screen firmware: it also sends the screen over Bluetooth. About 2 minutes; keep the FM-1 plugged in and on, and this app open. Your sounds and projects stay.")
                 .setPositiveButton("Install now", (d, w) -> startInstall())
@@ -1469,7 +1469,7 @@ public class MainActivity extends Activity {
             fm1Down = true;
             return;
         }
-        new AlertDialog.Builder(this).setTitle("Two sounds?")
+        dialog().setTitle("Two sounds?")
                 .setMessage("While the Mellotron plays, the FM-1 plays its own sound too. Turn the FM-1's own sound down while the Mellotron is on? It comes back up when you turn the Mellotron off.\n\n(Works with SLOOP; other firmware may ignore it.)")
                 .setPositiveButton("Always", (d, w) -> {
                     prefs.edit().putString("fm1Down", "always").apply();
@@ -1535,7 +1535,7 @@ public class MainActivity extends Activity {
                 acts.add(null);
             }
         }
-        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("Mellotron sounds")
+        AlertDialog.Builder b = dialog().setTitle("Mellotron sounds")
                 .setNegativeButton("Close", null);
         if (packs == null)
             b.setMessage("The list of sounds can't be reached now (" + why + "). Check the internet connection and try again."
@@ -1562,7 +1562,7 @@ public class MainActivity extends Activity {
             main.post(() -> {
                 wait.dismiss();
                 if (why != null) {
-                    new AlertDialog.Builder(this).setTitle("Mellotron sounds")
+                    dialog().setTitle("Mellotron sounds")
                             .setMessage(p.name + " couldn't be downloaded (" + why + "). Try again later.")
                             .setPositiveButton("OK", null).show();
                     return;
@@ -1574,7 +1574,7 @@ public class MainActivity extends Activity {
     }
 
     private void removeSound(Sounds.Pack p) {
-        new AlertDialog.Builder(this).setTitle("Remove " + p.name + "?")
+        dialog().setTitle("Remove " + p.name + "?")
                 .setMessage("It can be downloaded again from this list any time.")
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Remove", (d, w) -> {
@@ -1662,6 +1662,45 @@ public class MainActivity extends Activity {
         TextView t = text(s, 22, TEXT);
         t.setPadding(0, dp(6), 0, dp(6));
         panel.addView(t);
+    }
+
+    /** A dialog whose buttons look like the app's own: black bold text on yellow, big (the system's thin blue text
+     *  is hard to read). Every dialog in the app is made with this. */
+    private AlertDialog.Builder dialog() {
+        return new AlertDialog.Builder(this) {
+            @Override
+            public AlertDialog create() {
+                AlertDialog d = super.create();
+                d.setOnShowListener(x -> {
+                    for (int which : new int[] {AlertDialog.BUTTON_POSITIVE, AlertDialog.BUTTON_NEUTRAL, AlertDialog.BUTTON_NEGATIVE}) {
+                        Button b = d.getButton(which);
+                        if (b == null || b.getVisibility() != View.VISIBLE || b.getText().length() == 0) continue;
+                        b.setAllCaps(false);
+                        b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+                        b.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                        b.setTextColor(Color.BLACK);
+                        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
+                        on.setColor(Color.WHITE);
+                        on.setStroke(dp(4), 0xff2f7cf6);
+                        android.graphics.drawable.GradientDrawable off = new android.graphics.drawable.GradientDrawable();
+                        off.setColor(0xffffd60a);
+                        off.setCornerRadius(dp(6));
+                        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
+                        bg.addState(new int[] {android.R.attr.state_focused}, on);
+                        bg.addState(new int[] {android.R.attr.state_pressed}, on);
+                        bg.addState(new int[] {}, off);
+                        b.setBackground(bg);
+                        b.setPadding(dp(16), dp(8), dp(16), dp(8));
+                        if (b.getLayoutParams() instanceof android.view.ViewGroup.MarginLayoutParams) {
+                            android.view.ViewGroup.MarginLayoutParams lp = (android.view.ViewGroup.MarginLayoutParams) b.getLayoutParams();
+                            lp.setMargins(dp(6), dp(6), dp(6), dp(6));
+                            b.setLayoutParams(lp);
+                        }
+                    }
+                });
+                return d;
+            }
+        };
     }
 
     private Button button(String s, View.OnClickListener l) {
