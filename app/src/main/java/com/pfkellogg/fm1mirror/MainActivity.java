@@ -356,6 +356,7 @@ public class MainActivity extends Activity {
         int baseAsked = 0;
         final long[] baseAskAt = {1000, 5000, 6000}; // ms after opening: clear of the questions at 2, 3 and 4 s
         Fm1Port told = null;
+        boolean downSent = false; // the FM-1 turned down (CC 11) on this link
         while (running && gen == linkGen) {
             if (rescan) {
                 rescan = false;
@@ -423,7 +424,16 @@ public class MainActivity extends Activity {
                     baseAsked = 0;
                     baseFirst = true;
                     helloAt = 0;
+                    downSent = false;
                     link = l;
+                }
+            }
+            if (l != null && fm1Down != downSent) {
+                try {
+                    l.send(fm1Volume(!fm1Down));
+                    downSent = fm1Down;
+                } catch (IOException e) {
+                    lost = true;
                 }
             }
             if (l != null) {
@@ -498,7 +508,15 @@ public class MainActivity extends Activity {
         if (uk != null) uk.close();
         Fm1Port l = link;
         link = null;
-        if (l != null) l.close();
+        if (l != null) {
+            if (downSent) {
+                try {
+                    l.send(fm1Volume(true)); // leaving: the FM-1's own sound back up
+                } catch (IOException ignored) {
+                }
+            }
+            l.close();
+        }
         dropBle();
     }
 
@@ -1417,10 +1435,49 @@ public class MainActivity extends Activity {
             mellotron = m;
             played.fm1.tap = m::midi;
         }
+        boolean wasOn = !mellotronSound.isEmpty();
         mellotronSound = sound;
         prefs.edit().putString("mellotronSound", sound).remove("mellotron").apply();
+        if (sound.isEmpty()) fm1Down = false;
+        else if (!wasOn) askFm1Down();
         mellotronButton.setText(!sound.isEmpty() ? "Mellotron: " + sound
                 : Sounds.installed(this).isEmpty() ? "Mellotron: get sounds" : "Mellotron: off");
+    }
+
+    // ---- the FM-1's own sound while the Mellotron plays
+
+    /** Wanted: the FM-1's own sound down (the link thread sends it, and sends it back up when this goes false or the
+     *  app lets go of the FM-1). */
+    private volatile boolean fm1Down;
+
+    /** The FM-1's own sound down (0) or back up (127): CC 11, EXPRESSION, on all 16 channels. SLOOP (2.7.1+) takes it
+     *  as a gain over every track's LEVEL that isn't saved with the song, so nothing in a project changes and a
+     *  restart is full again; firmware that doesn't know it ignores it. */
+    static byte[] fm1Volume(boolean up) {
+        byte[] m = new byte[16 * 3];
+        for (int ch = 0; ch < 16; ch++) {
+            m[ch * 3] = (byte) (0xB0 | ch);
+            m[ch * 3 + 1] = 11;
+            m[ch * 3 + 2] = (byte) (up ? 127 : 0);
+        }
+        return m;
+    }
+
+    /** The Mellotron came on: turn the FM-1 down if "always", else ask (always, just this time, or no). */
+    private void askFm1Down() {
+        if ("always".equals(prefs.getString("fm1Down", "ask"))) {
+            fm1Down = true;
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Two sounds?")
+                .setMessage("While the Mellotron plays, the FM-1 plays its own sound too. Turn the FM-1's own sound down while the Mellotron is on? It comes back up when you turn the Mellotron off.\n\n(Works with SLOOP; other firmware may ignore it.)")
+                .setPositiveButton("Always", (d, w) -> {
+                    prefs.edit().putString("fm1Down", "always").apply();
+                    fm1Down = !mellotronSound.isEmpty();
+                })
+                .setNeutralButton("Just this time", (d, w) -> fm1Down = !mellotronSound.isEmpty())
+                .setNegativeButton("No", null)
+                .show();
     }
 
     /** "Mellotron sounds": what's on the list online, each with Download (or Remove, if downloaded). Built-in sounds
@@ -1449,6 +1506,14 @@ public class MainActivity extends Activity {
         java.util.List<String> labels = new java.util.ArrayList<>();
         java.util.List<Runnable> acts = new java.util.ArrayList<>();
         java.util.List<String> have = Sounds.installed(this);
+        boolean always = "always".equals(prefs.getString("fm1Down", "ask"));
+        labels.add(always ? "FM-1's own sound: always turned down while the Mellotron plays (tap to ask each time)"
+                : "FM-1's own sound: ask each time (tap to always turn it down)");
+        acts.add(() -> {
+            prefs.edit().putString("fm1Down", always ? "ask" : "always").apply();
+            if (!always && !mellotronSound.isEmpty()) fm1Down = true;
+            Toast.makeText(this, always ? "It will ask each time." : "The FM-1 is turned down whenever the Mellotron plays.", Toast.LENGTH_SHORT).show();
+        });
         if (packs != null) {
             for (Sounds.Pack p : packs) {
                 boolean built = Sounds.bundled(this, p.id), got = Sounds.downloaded(this, p.id);
