@@ -408,20 +408,20 @@ final class Mellotron {
     }
 
     private AudioTrack track(Context ctx, int out) {
-        int min = AudioTrack.getMinBufferSize(out, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        int min = AudioTrack.getMinBufferSize(out, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
         // four times the smallest: chords of 6 to 8 voices on a small tablet ran it dry while the screen drew (gaps)
-        int size = Math.max(4 * min, BLOCK * 16);
+        int size = Math.max(4 * min, BLOCK * 32);   // (bytes: stereo 16-bit)
         AudioTrack t;
         if (Build.VERSION.SDK_INT >= 26) {
             t = new AudioTrack.Builder()
                     .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                     .setAudioFormat(new AudioFormat.Builder().setSampleRate(out)
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT).setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build())
                     .setBufferSizeInBytes(size).setTransferMode(AudioTrack.MODE_STREAM)
                     .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY).build();
         } else {
-            t = new AudioTrack(AudioManager.STREAM_MUSIC, out, AudioFormat.CHANNEL_OUT_MONO,
+            t = new AudioTrack(AudioManager.STREAM_MUSIC, out, AudioFormat.CHANNEL_OUT_STEREO,
                     AudioFormat.ENCODING_PCM_16BIT, size, AudioTrack.MODE_STREAM);
         }
         AudioDeviceInfo own = ownOutput(ctx);
@@ -440,8 +440,9 @@ final class Mellotron {
         track.play();
         AudioDeviceInfo was = ownOutput(ctx);
         long nextCheck = 0;
-        float[] mix = new float[BLOCK];
-        short[] out = new short[BLOCK];
+        float[] mix = new float[BLOCK], mono = new float[BLOCK], lr = new float[2 * BLOCK];
+        short[] out = new short[BLOCK], st = new short[2 * BLOCK];               // (stereo: Sweeten's width)
+        Sweeten sweet = new Sweeten(out_);
         float attack = 1f / (0.004f * out_);                                 // the tape meets the head: 4 ms
         float fade = (float) Math.pow(0.001, 1.0 / (0.12 * out_));          // let go: the head lifts, gone in 0.12 s
         while (!stop) {
@@ -499,7 +500,13 @@ final class Mellotron {
                 float x = mix[k] * 0.3f / 32768f, a = Math.abs(x);
                 if (a > 0.6f) x = Math.signum(x) * (0.6f + 0.4f * (float) Math.tanh((a - 0.6f) / 0.4f));
                 out[k] = (short) (x * 32767);
+                mono[k] = x;
                 loud = Math.max(loud, Math.abs(x));
+            }
+            sweet.run(mono, lr, BLOCK);                                         // (off: the same on both sides)
+            for (int k = 0; k < 2 * BLOCK; k++) {
+                float v = lr[k];
+                st[k] = (short) ((v > 1f ? 1f : v < -1f ? -1f : v) * 32767);
             }
             synchronized (this) {
                 for (int k = 0; k < BLOCK; k++) {
@@ -509,7 +516,7 @@ final class Mellotron {
                 if (loud > 0.002f) heardAt = android.os.SystemClock.uptimeMillis();
             }
             long w1 = System.nanoTime();
-            track.write(out, 0, BLOCK);
+            track.write(st, 0, 2 * BLOCK);
             long w2 = System.nanoTime();
             // (diagnostics, debug builds: blocks that took long to mix, waits on write, underruns, once a second)
             if (DIAG) {

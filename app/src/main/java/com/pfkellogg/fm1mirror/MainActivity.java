@@ -180,7 +180,11 @@ public class MainActivity extends Activity {
         // Two lights, stacked: what you hear. Lit (green) = you hear it; tap one to switch it (remembered).
         fm1WithMellotron = prefs.getBoolean("fm1WithMellotron", true);
         lights = new LinearLayout(this);
-        lights.setOrientation(LinearLayout.VERTICAL);
+        lights.setOrientation(LinearLayout.HORIZONTAL);
+        lights.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout pair = new LinearLayout(this);
+        pair.setOrientation(LinearLayout.VERTICAL);
+        Sweeten.on = prefs.getBoolean("sweeten", false);
         fm1Light = light("FM-1", v -> {
             if (mellotronSound.isEmpty()) {
                 Toast.makeText(this, "You hear the FM-1. While the Mellotron is on, tap this for both sounds or only the Mellotron.", Toast.LENGTH_SHORT).show();
@@ -194,8 +198,16 @@ public class MainActivity extends Activity {
             if (mellotronSound.isEmpty()) nextMellotron();
             else setMellotron("");
         });
-        lights.addView(fm1Light);
-        lights.addView(melLight);
+        pair.addView(fm1Light);
+        pair.addView(melLight);
+        lights.addView(pair);
+        // Sweeten: the Mellotron as a good stereo makes it (warmth and air, saturation, stereo width, a small room)
+        sweetLight = light("Sweeten", v -> {
+            Sweeten.on = !Sweeten.on;
+            prefs.edit().putBoolean("sweeten", Sweeten.on).apply();
+            showLight(sweetLight, Sweeten.on);
+        });
+        lights.addView(sweetLight);
         bar.addView(lights);
         // (1.6.8 remembered just on / off: on was the flute)
         setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
@@ -1495,7 +1507,7 @@ public class MainActivity extends Activity {
     /** The FM-1 light while the Mellotron is on: lit = you hear the FM-1 too (both sounds), dark = only the
      *  Mellotron. Remembered, like the Mellotron's own light (its sound). */
     private boolean fm1WithMellotron;
-    private TextView fm1Light, melLight;
+    private TextView fm1Light, melLight, sweetLight;
     private LinearLayout lights;
 
     /** The FM-1's own sound as its light says: down only while the Mellotron is on and the FM-1 light is dark (back up
@@ -1507,6 +1519,7 @@ public class MainActivity extends Activity {
         if (fm1Light != null) {
             showLight(fm1Light, !down);
             showLight(melLight, !mellotronSound.isEmpty());
+            if (sweetLight != null) showLight(sweetLight, Sweeten.on);
             // only with a Mellotron to hear: always in Max; in Basic once a sound has been downloaded
             lights.setVisibility(Sounds.installed(this).isEmpty() ? View.GONE : View.VISIBLE);
         }
