@@ -1,0 +1,29 @@
+{
+ "about": "The Mellotron's sounds for FM-1 Big Screen (Android, Mac, Windows, Linux): 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music. Add a sound: zip its strips, put the zip on a release, add it here.",
+ "sounds": [
+  {
+   "id": "flute",
+   "name": "Flute",
+   "version": 1,
+   "bytes": 8155700,
+   "sha256": "707d6b2a5e64dcefc6bbf80a3ed50cce7364e94867c4138201451604b4d1150a",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-1/mellotron-flute.zip"
+  },
+  {
+   "id": "strings",
+   "name": "Strings",
+   "version": 1,
+   "bytes": 9937953,
+   "sha256": "db5a978d50aa0fde65d8ed5e3703089443e0b7c7dd56e4c4ddd37c4be01102fc",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-1/mellotron-strings.zip"
+  },
+  {
+   "id": "choir",
+   "name": "Choir",
+   "version": 1,
+   "bytes": 9365591,
+   "sha256": "ffdb65844c5a948de612564412f891114abb8b78496ba277a941930f0a633435",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-1/mellotron-choir.zip"
+  }
+ ]
+}
