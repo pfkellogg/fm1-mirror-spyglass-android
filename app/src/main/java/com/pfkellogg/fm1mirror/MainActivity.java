@@ -174,6 +174,26 @@ public class MainActivity extends Activity {
             return true;
         });
         bar.addView(mellotronButton);
+        // Two lights, stacked: what you hear. Lit (green) = you hear it; tap one to switch it (remembered).
+        fm1WithMellotron = prefs.getBoolean("fm1WithMellotron", true);
+        lights = new LinearLayout(this);
+        lights.setOrientation(LinearLayout.VERTICAL);
+        fm1Light = light("FM-1", v -> {
+            if (mellotronSound.isEmpty()) {
+                Toast.makeText(this, "You hear the FM-1. While the Mellotron is on, tap this for both sounds or only the Mellotron.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            fm1WithMellotron = !fm1WithMellotron;
+            prefs.edit().putBoolean("fm1WithMellotron", fm1WithMellotron).apply();
+            applyFm1Light();
+        });
+        melLight = light("Mellotron", v -> {
+            if (mellotronSound.isEmpty()) nextMellotron();
+            else setMellotron("");
+        });
+        lights.addView(fm1Light);
+        lights.addView(melLight);
+        bar.addView(lights);
         // (1.6.8 remembered just on / off: on was the flute)
         setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
         Demo.startIfDebug(this, played.keys);
@@ -1440,14 +1460,9 @@ public class MainActivity extends Activity {
             mellotron = m;
             played.fm1.tap = m::midi;
         }
-        boolean wasOn = !mellotronSound.isEmpty();
         mellotronSound = sound;
         prefs.edit().putString("mellotronSound", sound).remove("mellotron").apply();
-        if (sound.isEmpty()) {
-            fm1Down = false;
-            fm1UpOnce = true;
-        }
-        else if (!wasOn) askFm1Down();
+        applyFm1Light();
         mellotronButton.setText(!sound.isEmpty() ? "Mellotron: " + sound
                 : Sounds.installed(this).isEmpty() ? "Mellotron: get sounds" : "Mellotron: off");
     }
@@ -1456,7 +1471,7 @@ public class MainActivity extends Activity {
 
     /** Wanted: the FM-1's own sound down (the link thread sends it, and sends it back up when this goes false or the
      *  app lets go of the FM-1). */
-    private volatile boolean fm1Down;
+    static volatile boolean fm1Down;
     /** Send "back up" once even if this app didn't turn it down (another app, a computer's, may have): "No", or the
      *  Mellotron off, means the FM-1's own sound is wanted. */
     private volatile boolean fm1UpOnce;
@@ -1474,24 +1489,45 @@ public class MainActivity extends Activity {
         return m;
     }
 
-    /** The Mellotron came on: turn the FM-1 down if "always", else ask (always, just this time, or no). */
-    private void askFm1Down() {
-        if ("always".equals(prefs.getString("fm1Down", "ask"))) {
-            fm1Down = true;
-            return;
+    /** The FM-1 light while the Mellotron is on: lit = you hear the FM-1 too (both sounds), dark = only the
+     *  Mellotron. Remembered, like the Mellotron's own light (its sound). */
+    private boolean fm1WithMellotron;
+    private TextView fm1Light, melLight;
+    private LinearLayout lights;
+
+    /** The FM-1's own sound as its light says: down only while the Mellotron is on and the FM-1 light is dark (back up
+     *  is sent even if another app turned it down), and the lights shown. */
+    private void applyFm1Light() {
+        boolean down = !mellotronSound.isEmpty() && !fm1WithMellotron, was = fm1Down;
+        fm1Down = down;
+        if (!down && !was) fm1UpOnce = true;
+        if (fm1Light != null) {
+            showLight(fm1Light, !down);
+            showLight(melLight, !mellotronSound.isEmpty());
         }
-        dialog().setTitle("Two sounds?")
-                .setMessage("While the Mellotron plays, the FM-1 plays its own sound too. Turn the FM-1's own sound down while the Mellotron is on? It comes back up when you turn the Mellotron off.\n\n(Works with SLOOP; other firmware may ignore it.)")
-                .setPositiveButton("Always", (d, w) -> {
-                    prefs.edit().putString("fm1Down", "always").apply();
-                    fm1Down = !mellotronSound.isEmpty();
-                })
-                .setNeutralButton("Just this time", (d, w) -> fm1Down = !mellotronSound.isEmpty())
-                .setNegativeButton("No", (d, w) -> {
-                    fm1Down = false;
-                    fm1UpOnce = true;
-                })
-                .show();
+    }
+
+    /** A light with its name: green when lit (you hear it), dark when not. */
+    private TextView light(String name, View.OnClickListener l) {
+        TextView t = text(name, 16, TEXT);
+        t.setSingleLine(true);
+        t.setCompoundDrawablePadding(dp(6));
+        t.setPadding(dp(6), dp(2), dp(6), dp(2));
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        t.setClickable(true);
+        t.setFocusable(true);
+        t.setOnClickListener(l);
+        return t;
+    }
+
+    private void showLight(TextView t, boolean lit) {
+        android.graphics.drawable.GradientDrawable dot = new android.graphics.drawable.GradientDrawable();
+        dot.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        dot.setColor(lit ? 0xff28e650 : 0xff373737);
+        dot.setStroke(dp(lit ? 2 : 1), lit ? 0x6628ff5a : 0xff5a5a5a);
+        dot.setSize(dp(14), dp(14));
+        t.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, null, null, null);
+        t.setTextColor(lit ? Color.WHITE : 0xff8a8a8a);
     }
 
     /** "Mellotron sounds": what's on the list online, each with Download (or Remove, if downloaded). Built-in sounds
@@ -1520,14 +1556,6 @@ public class MainActivity extends Activity {
         java.util.List<String> labels = new java.util.ArrayList<>();
         java.util.List<Runnable> acts = new java.util.ArrayList<>();
         java.util.List<String> have = Sounds.installed(this);
-        boolean always = "always".equals(prefs.getString("fm1Down", "ask"));
-        labels.add(always ? "FM-1's own sound: always turned down while the Mellotron plays (tap to ask each time)"
-                : "FM-1's own sound: ask each time (tap to always turn it down)");
-        acts.add(() -> {
-            prefs.edit().putString("fm1Down", always ? "ask" : "always").apply();
-            if (!always && !mellotronSound.isEmpty()) fm1Down = true;
-            Toast.makeText(this, always ? "It will ask each time." : "The FM-1 is turned down whenever the Mellotron plays.", Toast.LENGTH_SHORT).show();
-        });
         if (packs != null) {
             for (Sounds.Pack p : packs) {
                 boolean built = Sounds.bundled(this, p.id), got = Sounds.downloaded(this, p.id);
@@ -1722,7 +1750,7 @@ public class MainActivity extends Activity {
     private float barScale = 1f;
 
     private void fitBar() {
-        int avail = bar.getWidth() - bar.getPaddingLeft() - bar.getPaddingRight();
+        int avail = bar.getWidth() - bar.getPaddingLeft() - bar.getPaddingRight() - (lights != null ? lights.getWidth() : 0);
         if (avail <= 0) return;
         float need = 0;
         for (int i = 0; i < bar.getChildCount(); i++) {

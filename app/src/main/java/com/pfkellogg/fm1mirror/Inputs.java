@@ -313,7 +313,7 @@ final class Inputs {
         byte[] toFm1 = m;
         if (mel != null) {
             mel.keys(m, 0, m.length);
-            toFm1 = Mellotron.withoutNotes(m);
+            if (MainActivity.fm1Down) toFm1 = Mellotron.withoutNotes(m); // (FM-1 light lit: the notes go to the FM-1 too)
         }
         byte[] one = null;
         for (String t : to) {
