@@ -183,6 +183,7 @@ public class MainActivity extends Activity {
         Button big = button("Full screen", v -> setFull(true));
         bar.addView(big);
         root.addView(bar);
+        bar.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> bar.post(this::fitBar));
 
         stage = new FrameLayout(this);
         screen = new ScreenView(this);
@@ -1701,6 +1702,39 @@ public class MainActivity extends Activity {
                 return d;
             }
         };
+    }
+
+    /** The bar's buttons at their usual size (20 dp text) when they fit; else a little smaller, all alike, so the last
+     *  one (Full screen) is never cut off on a narrower screen or with a longer label ("Mellotron: strings"). */
+    private float barScale = 1f;
+
+    private void fitBar() {
+        int avail = bar.getWidth() - bar.getPaddingLeft() - bar.getPaddingRight();
+        if (avail <= 0) return;
+        float need = 0;
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View c = bar.getChildAt(i);
+            if (!(c instanceof Button) || c.getVisibility() != View.VISIBLE) continue;
+            Button b = (Button) c;
+            // its width at the usual size: the text measured at 20 dp, the usual padding and margins
+            android.graphics.Paint p = new android.graphics.Paint(b.getPaint());
+            p.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics()));
+            need += p.measureText(b.getText().toString()) + dp(18) * 2 + dp(6) * 2;
+        }
+        float s = need <= avail ? 1f : Math.max(0.55f, avail / need * 0.97f);
+        if (Math.abs(s - barScale) < 0.01f) return;
+        barScale = s;
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View c = bar.getChildAt(i);
+            if (!(c instanceof Button)) continue;
+            Button b = (Button) c;
+            b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20 * s);
+            b.setPadding(Math.round(dp(18) * s), dp(10), Math.round(dp(18) * s), dp(10));
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) b.getLayoutParams();
+            int m = Math.round(dp(6) * s);
+            lp.setMargins(m, dp(6), m, dp(6));
+            b.setLayoutParams(lp);
+        }
     }
 
     private Button button(String s, View.OnClickListener l) {
