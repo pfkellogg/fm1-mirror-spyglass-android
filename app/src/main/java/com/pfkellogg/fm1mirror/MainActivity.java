@@ -429,6 +429,10 @@ public class MainActivity extends Activity {
                     link = l;
                 }
             }
+            if (l != null && !fm1Down && fm1UpOnce) {
+                fm1UpOnce = false;
+                downSent = true; // (so it's sent below)
+            }
             if (l != null && fm1Down != downSent) {
                 try {
                     l.send(fm1Volume(!fm1Down));
@@ -1439,7 +1443,10 @@ public class MainActivity extends Activity {
         boolean wasOn = !mellotronSound.isEmpty();
         mellotronSound = sound;
         prefs.edit().putString("mellotronSound", sound).remove("mellotron").apply();
-        if (sound.isEmpty()) fm1Down = false;
+        if (sound.isEmpty()) {
+            fm1Down = false;
+            fm1UpOnce = true;
+        }
         else if (!wasOn) askFm1Down();
         mellotronButton.setText(!sound.isEmpty() ? "Mellotron: " + sound
                 : Sounds.installed(this).isEmpty() ? "Mellotron: get sounds" : "Mellotron: off");
@@ -1450,6 +1457,9 @@ public class MainActivity extends Activity {
     /** Wanted: the FM-1's own sound down (the link thread sends it, and sends it back up when this goes false or the
      *  app lets go of the FM-1). */
     private volatile boolean fm1Down;
+    /** Send "back up" once even if this app didn't turn it down (another app, a computer's, may have): "No", or the
+     *  Mellotron off, means the FM-1's own sound is wanted. */
+    private volatile boolean fm1UpOnce;
 
     /** The FM-1's own sound down (0) or back up (127): CC 11, EXPRESSION, on all 16 channels. SLOOP (2.7.1+) takes it
      *  as a gain over every track's LEVEL that isn't saved with the song, so nothing in a project changes and a
@@ -1477,7 +1487,10 @@ public class MainActivity extends Activity {
                     fm1Down = !mellotronSound.isEmpty();
                 })
                 .setNeutralButton("Just this time", (d, w) -> fm1Down = !mellotronSound.isEmpty())
-                .setNegativeButton("No", null)
+                .setNegativeButton("No", (d, w) -> {
+                    fm1Down = false;
+                    fm1UpOnce = true;
+                })
                 .show();
     }
 
