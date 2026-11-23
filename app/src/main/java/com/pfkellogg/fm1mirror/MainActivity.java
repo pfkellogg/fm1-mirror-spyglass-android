@@ -295,8 +295,8 @@ public class MainActivity extends Activity {
         letGo();
     }
 
-    // On a TV the bar hides after a few quiet seconds, so the FM-1's screen gets the whole height (4x instead of 3x
-    // on a 1080p TV). Any remote button brings it back; that press only shows the bar, it doesn't also press a button.
+    // On a TV the bar hides after a few quiet seconds (its room kept, so nothing moves; Full screen gives the FM-1's
+    // screen the whole height). Any remote button brings it back; that press only shows the bar, it doesn't also press a button.
     private static final long BAR_SECONDS = 5;
     private boolean tv, barAsleep, swallowUp;
     private View barFocus;
@@ -305,7 +305,7 @@ public class MainActivity extends Activity {
         View f = getCurrentFocus();
         barFocus = f != null && f.getParent() == bar ? f : null;
         barAsleep = true;
-        bar.setVisibility(View.GONE);
+        bar.setVisibility(View.INVISIBLE); // (its room kept: the FM-1's screen doesn't change size when it comes and goes)
     };
 
     /** The remote was used: show the bar (if it slept) and start counting again. */
