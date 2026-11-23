@@ -38,16 +38,18 @@ Linux and Android, and iPhone and iPad are coming.
 
 ## Download
 
-Two versions, from 1.6.11 (pick one; either can be swapped for the other later, it installs over it):
+**Two versions: Basic and Max.** From 1.6.11. Pick one; either can be swapped for the other later (it installs over it).
 
-| Version | File | Size |
-|---|---|---|
-| **Full**: everything, with the Mellotron's flute, strings and choir built in | [**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk) | about 31 MB |
-| **Lite**: bare bones, just the built-in piano; Mellotron sounds downloaded only if you want them | [**FM-1-Mirror-Spyglass-android-lite.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android-lite.apk) | about 3.4 MB |
+| Version | What's in it | File | Size |
+|---|---|---|---|
+| **Max (with Mellotrons)** | Everything, with a Mellotron's **flute, strings and choir built in**, ready to play from the FM-1's keys | [**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk) | about 32 MB |
+| **Basic** | Bare bones: the big screen, the spyglass and the built-in piano. Mellotron sounds (and every new one we make) download only if you want them | [**FM-1-Mirror-Spyglass-android-lite.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android-lite.apk) | about 3.4 MB |
+
+In the files, Basic is the one ending in **-lite**.
 
 (Android 7.1 or newer: tablets, phones, and from 1.5.0 a **Fire TV Stick 4K**, see [On a TV](#on-a-tv-fire-tv-stick-4k))
 
-**Mellotron sounds, in both versions:** long-press the **Mellotron** button (on a TV, long-press OK on it), or in Lite
+**Mellotron sounds, in both versions:** long-press the **Mellotron** button (on a TV, long-press OK on it), or in Basic
 just tap it, for the list of sounds online, and tap one to download it (flute 7.8 MB, strings 9.5 MB, choir 8.9 MB; a
 downloaded sound can be removed there too). New sounds are added to that list (sounds/sounds.json in this repo), so
 they arrive without an app update. The app goes online only for that list and those downloads.
@@ -151,7 +153,7 @@ Open firmware, and **Recovery & force update › Restore original V15** the firm
   tablet's or TV's own sound, while the FM-1 plays its own sound too (turn the FM-1 down to hear only the Mellotron).
   From 1.6.9 the button steps through its three classic sounds, **flute**, **strings** and **choir**, then off (it
   remembers the last). From 1.6.10 a keyboard plugged in plays it too: while the Mellotron is on, the keyboard's notes play
-  it instead of the FM-1 (no FM-1 piano under it), and its knobs and pedal still go to the FM-1. The flute was tuned in 1.6.9 against a real Mellotron flute, by ear and by measurement (its
+  it instead of the FM-1 (no FM-1 piano under it), and its knobs and pedal still go to the FM-1. The flute is now **v7** (2026-11-23): less hiss, a reedier low end, livelier vibrato; Basic downloads it as the new flute (version 2 in the sounds list), and the [Mellotron Flute Lab](https://aikellogg.com/#/flute-lab) puts its whole recipe on sliders. The flute was tuned in 1.6.9 against a real Mellotron flute, by ear and by measurement (its
   recordings aren't in the app): a wooden, hollow tone with the breath inside it, and the flute player's vibrato, about
   5 times a second, in pitch and loudness.
   Like the real instrument, every key has a recording of its own (35 keys, G2 to F5), each 8 seconds long, and a key held
@@ -269,6 +271,8 @@ The sixth: **[Erik37 + FM-1 Big Screen](https://github.com/pfkellogg/erik37/blob
 The seventh: **[NACHTFAHRT + FM-1 Big Screen](https://github.com/pfkellogg/fm1-nachtfahrt/blob/big-screen/BIG_SCREEN.md)**, Cranky Man's generative Berlin School instrument, NACHTFAHRT 1.0 with the mirror added, and the piece playing on the spyglass. USB only. Tested on a real FM-1 (2026-11-17). The code is public; no download while it's offered to Cranky Man ([pull request #9](https://github.com/FartyPants/fm1-nachtfahrt/pull/9)). Its sibling NACHTBAR (a tenor sax in a late-night jazz bar) hasn't published its source yet; it's asked for ([issue #3](https://github.com/FartyPants/fm1-nachtbar/issues/3)) so it can get the same. Watch it: [NACHTBAR, and NACHTFAHRT on a Big Screen (Before/After)](https://youtu.be/TzhZUkLPeHU).
 
 **Built in by its author.** **[Skiff Atlatl](https://github.com/LIkst4/skiff-atlatl)** 1.2 by LIkst4, a six-track groovebox forked from Skiff, has the screen part in its own release: install it as it is, from its [Releases](https://github.com/LIkst4/skiff-atlatl/releases), and FM-1 Big Screen shows it big. No Big Screen version needed. Thank you, LIkst4! Tested on a real FM-1 (2026-11-21). The app names it "Skiff Atlatl" from Mac 1.3.15 and Android 1.6.5 (earlier versions call it "Skiff").
+
+**Big Screen version 2.** David Konsumer's [bigscreen.h](https://github.com/konsumer/foma/tree/main/bigscreen) (MIT) is the next version of the Big Screen protocol: the FM-1 sends only the parts of the screen that changed, compressed, and says when a frame is whole, so the picture never shows half a frame (about 0.7 KB a frame instead of 1.8 KB, and half the lag). The app asks for version 2 first and falls back to version 1 by itself, so every Big Screen firmware keeps working (checked with SLOOP on a real FM-1); firmware using bigscreen.h (fomajam, and the ones that switch to it) shows whole frames. Our decoder matches bigscreen.h's own output pixel for pixel. Thank you, David!
 
 **Firmware built on fm1-base, with its own mirror.** Charles Vestal's [fm1-base](https://github.com/charlesvestal/fm1-base) has a screen mirror of its own (his protocol, not Big Screen's). From 1.6.7 (and Mac 1.3.17) FM-1 Big Screen understands it too, so firmware built on fm1-base with that mirror turned on (`mirror = true`) shows big with nothing else to install, for example Polly, LOOM-8, Ocarina, Mutable Dreams, ECHOFIELD, JAMTRACK, Kris Jangle and LOAF BREAKER. Thank you, Charles! Tested on a real FM-1 with Polly 0.6.4 (2026-11-21) on a Mac and a Fire TV Stick.
 

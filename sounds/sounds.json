@@ -4,10 +4,10 @@
   {
    "id": "flute",
    "name": "Flute",
-   "version": 1,
-   "bytes": 8155700,
-   "sha256": "707d6b2a5e64dcefc6bbf80a3ed50cce7364e94867c4138201451604b4d1150a",
-   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-1/mellotron-flute.zip"
+   "version": 2,
+   "bytes": 10113692,
+   "sha256": "1ab47752e4a77453b93237ccc6853fe6b0c8eace748ec8dc7f1ab17d2a0d51bf",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-2/mellotron-flute-v7.zip"
   },
   {
    "id": "strings",

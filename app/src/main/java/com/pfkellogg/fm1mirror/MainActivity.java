@@ -63,6 +63,9 @@ public class MainActivity extends Activity {
     // Shared with the MIDI threads; guarded by `this`.
     private final int[] pixels = new int[Codec.SIZE * Codec.SIZE];
     private boolean changed;
+    /** Big Screen version 2 (konsumer's): the frame being put together, shown whole; INFOs heard (for the Asker). */
+    private final BigScreen2.Viewer v2 = new BigScreen2.Viewer();
+    private volatile int v2Answers;
     private long lastScreen; // when the last screen message came (0: not since the link opened)
     private String identity;
     /** What a Felucca-family firmware says it is ("FELUCCA SLOOP 2.8.4"): its USB name may only say "Felucca". */
@@ -347,7 +350,9 @@ public class MainActivity extends Activity {
     /** On a thread of its own: opening waits for Android, and the FM-1 stops sending 3 s after the last hello. */
     private void keepLinked(int gen) {
         long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0, baseAt = 0;
-        boolean askedIdentity = false, askedBuild = false, askedInfo = false, first = true, baseFirst = true;
+        boolean askedIdentity = false, askedBuild = false, askedInfo = false, baseFirst = true;
+        // Big Screen version 2 first (whole frames, less to send); version 1 if the firmware doesn't answer.
+        BigScreen2.Asker asker = new BigScreen2.Asker();
         int baseAsked = 0;
         final long[] baseAskAt = {1000, 5000, 6000}; // ms after opening: clear of the questions at 2, 3 and 4 s
         Fm1Port told = null;
@@ -413,7 +418,7 @@ public class MainActivity extends Activity {
                     lost = false;
                     opened = System.currentTimeMillis();
                     askedIdentity = askedBuild = askedInfo = false;
-                    first = true;
+                    asker = new BigScreen2.Asker();
                     baseOn = false;
                     baseAsked = 0;
                     baseFirst = true;
@@ -424,12 +429,11 @@ public class MainActivity extends Activity {
             if (l != null) {
                 try {
                     if (behind) {
-                        first = true; // the whole screen again when it's back on screen
-                    } else if (now - helloAt >= HELLO_EVERY) {
+                        asker.wantAll(); // the whole screen again when it's back on screen
+                    } else if (now - helloAt >= asker.every(HELLO_EVERY)) {
                         helloAt = now;
                         // The whole screen the first time: someone else may be keeping the mirror on.
-                        l.send(first ? Codec.HELLO_ALL : Codec.HELLO);
-                        first = false;
+                        l.send(asker.next(v2Answers));
                     }
                     // One question at a time: the FM-1's updater drops a second one sent straight after.
                     if (!askedIdentity && now - opened > 2000) {
@@ -932,6 +936,16 @@ public class MainActivity extends Activity {
     }
 
 
+    /** Shows the version 2 frame (call holding this). */
+    private void showV2() {
+        v2.show(pixels);
+        lastScreen = System.currentTimeMillis();
+        if (!changed) {
+            changed = true;
+            screen.postInvalidateOnAnimation();
+        }
+    }
+
     private void onMessage(byte[] m) {
         String name = Codec.sound(m);
         if (name != null) {
@@ -944,6 +958,22 @@ public class MainActivity extends Activity {
                 firmware = info;
             }
             return;
+        }
+        synchronized (this) {
+            int got = v2.apply(m, System.currentTimeMillis());
+            if (got == BigScreen2.INFO) {
+                v2Answers++;
+                return;
+            }
+            if (got == BigScreen2.FRAME) {
+                showV2();
+                return;
+            }
+            if (got == BigScreen2.PAINTED) {
+                // no SYNC within 60 ms (the screen changes faster than it can be sent): show what came anyway
+                if (v2.waitingSince != 0) screen.postDelayed(() -> { synchronized (MainActivity.this) { if (v2.overdue(System.currentTimeMillis())) showV2(); } }, BigScreen2.SHOW_AFTER + 5);
+                return;
+            }
         }
         synchronized (this) {
             if (Codec.apply(pixels, m)) {
