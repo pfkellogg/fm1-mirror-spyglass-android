@@ -38,8 +38,19 @@ Linux and Android, and iPhone and iPad are coming.
 
 ## Download
 
-[**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk)
+Two versions, from 1.6.11 (pick one; either can be swapped for the other later, it installs over it):
+
+| Version | File | Size |
+|---|---|---|
+| **Full**: everything, with the Mellotron's flute, strings and choir built in | [**FM-1-Mirror-Spyglass-android.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android.apk) | about 31 MB |
+| **Lite**: bare bones, just the built-in piano; Mellotron sounds downloaded only if you want them | [**FM-1-Mirror-Spyglass-android-lite.apk**](https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/latest/download/FM-1-Mirror-Spyglass-android-lite.apk) | about 3.4 MB |
+
 (Android 7.1 or newer: tablets, phones, and from 1.5.0 a **Fire TV Stick 4K**, see [On a TV](#on-a-tv-fire-tv-stick-4k))
+
+**Mellotron sounds, in both versions:** long-press the **Mellotron** button (on a TV, long-press OK on it), or in Lite
+just tap it, for the list of sounds online, and tap one to download it (flute 7.8 MB, strings 9.5 MB, choir 8.9 MB; a
+downloaded sound can be removed there too). New sounds are added to that list (sounds/sounds.json in this repo), so
+they arrive without an app update. The app goes online only for that list and those downloads.
 
 Open the link on the tablet or phone and tap the file when it has downloaded. It isn't from Google
 Play, so Android asks first: allow your browser to **install unknown apps**, then tap **Install**.

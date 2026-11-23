@@ -129,10 +129,13 @@ final class Mellotron {
 
     /** The 35 strips, from the cache, else decoded four at a time (one by one took 20 s on a small tablet). */
     private void load(Context ctx, String set) {
+        clearOldCache(ctx, set);
         long t0 = android.os.SystemClock.uptimeMillis();
+        String stamp = Sounds.stamp(ctx, set);                 // built in, or downloaded (and when): see Sounds
+        boolean bundled = Sounds.bundled(ctx, set);
         short[][] got;
         synchronized (CACHE) {
-            java.lang.ref.SoftReference<short[][]> r = CACHE.get(set);
+            java.lang.ref.SoftReference<short[][]> r = CACHE.get(set + "/" + stamp);
             got = r == null ? null : r.get();
         }
         if (got == null) {
@@ -140,7 +143,7 @@ final class Mellotron {
             java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
             for (int key = LOW; key <= HIGH; key++) {
                 final int k = key;
-                pool.execute(() -> all[k] = strip(ctx, set, k));
+                pool.execute(() -> all[k] = strip(ctx, set, stamp, bundled, k));
             }
             pool.shutdown();
             try {
@@ -149,7 +152,7 @@ final class Mellotron {
             }
             got = all;
             synchronized (CACHE) {
-                CACHE.put(set, new java.lang.ref.SoftReference<>(all));
+                CACHE.put(set + "/" + stamp, new java.lang.ref.SoftReference<>(all));
             }
         }
         int n = 0;
@@ -165,8 +168,8 @@ final class Mellotron {
      * One strip: from the app's cache folder when it was decoded before (a fraction of a second), else decoded from
      * the assets and kept there (a small tablet decodes FLAC slowly: a whole sound took half a minute).
      */
-    private static short[] strip(Context ctx, String set, int key) {
-        java.io.File f = new java.io.File(ctx.getCacheDir(), String.format(java.util.Locale.US, "mellotron/%s/%03d.pcm", set, key));
+    private static short[] strip(Context ctx, String set, String stamp, boolean bundled, int key) {
+        java.io.File f = new java.io.File(ctx.getCacheDir(), String.format(java.util.Locale.US, "mellotron/%s/%s/%03d.pcm", set, stamp, key));
         if (f.length() > 0) {
             try (java.io.FileInputStream in = new java.io.FileInputStream(f)) {
                 ByteBuffer b = ByteBuffer.allocate((int) f.length()).order(ByteOrder.LITTLE_ENDIAN);
@@ -179,7 +182,8 @@ final class Mellotron {
                 Log.w(TAG, "mellotron: cache " + f, e);
             }
         }
-        short[] s = decode(ctx, String.format(java.util.Locale.US, "mellotron/%s/%03d.flac", set, key));
+        String name = String.format(java.util.Locale.US, "%03d.flac", key);
+        short[] s = bundled ? decode(ctx, "mellotron/" + set + "/" + name, null) : decode(ctx, null, new java.io.File(Sounds.dir(ctx, set), name));
         if (s != null) {
             f.getParentFile().mkdirs();
             java.io.File tmp = new java.io.File(f.getPath() + ".tmp");
@@ -197,13 +201,29 @@ final class Mellotron {
     }
 
     /** A sound file in the assets, as mono 16-bit samples (the strips are mono, 44.1 kHz). */
-    private static short[] decode(Context ctx, String asset) {
+    /** Cache files of this sound from older versions (other stamps, or none: 1.6.9-1.6.10) are removed. */
+    private static void clearOldCache(Context ctx, String set) {
+        java.io.File[] old = new java.io.File(new java.io.File(ctx.getCacheDir(), "mellotron"), set).listFiles();
+        String keep = Sounds.stamp(ctx, set);
+        if (old != null) for (java.io.File f : old) if (!f.getName().equals(keep)) {
+            java.io.File[] k = f.listFiles();
+            if (k != null) for (java.io.File c : k) c.delete();
+            f.delete();
+        }
+    }
+
+    /** From the assets (`asset`) or a downloaded file (`file`). */
+    private static short[] decode(Context ctx, String asset, java.io.File file) {
         MediaExtractor ex = new MediaExtractor();
         MediaCodec codec = null;
         try {
-            android.content.res.AssetFileDescriptor fd = ctx.getAssets().openFd(asset);
-            ex.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength());
-            fd.close();
+            if (file != null) {
+                ex.setDataSource(file.getPath());
+            } else {
+                android.content.res.AssetFileDescriptor fd = ctx.getAssets().openFd(asset);
+                ex.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength());
+                fd.close();
+            }
             ex.selectTrack(0);
             MediaFormat f = ex.getTrackFormat(0);
             int channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT);
@@ -245,7 +265,7 @@ final class Mellotron {
             out.get(s);
             return s;
         } catch (Exception e) {
-            Log.w(TAG, "mellotron: " + asset, e);
+            Log.w(TAG, "mellotron: " + (file != null ? file : asset), e);
             return null;
         } finally {
             if (codec != null) {

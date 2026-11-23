@@ -4,6 +4,8 @@
     <!-- Not required: without Android's MIDI service (an onn Google TV box), the FM-1 is opened straight over USB (UsbMidi.java). -->
     <uses-feature android:name="android.software.midi" android:required="false" />
     <!-- The FM-1's sound over USB, for the spyglass's waveform (Scope.java). -->
+    <!-- only for "Mellotron sounds": the list of sounds and their downloads, from this app's GitHub -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />

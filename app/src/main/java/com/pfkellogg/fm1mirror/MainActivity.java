@@ -166,6 +166,10 @@ public class MainActivity extends Activity {
         smoothButton = button("", v -> toggleSmooth());
         bar.addView(smoothButton);
         mellotronButton = button("", v -> nextMellotron());
+        mellotronButton.setOnLongClickListener(v -> {
+            openSounds();
+            return true;
+        });
         bar.addView(mellotronButton);
         // (1.6.8 remembered just on / off: on was the flute)
         setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
@@ -1355,19 +1359,23 @@ public class MainActivity extends Activity {
         screen.invalidate();
     }
 
-    /** The Mellotron's sounds, in the order the button steps through them (then off). */
-    private static final String[] MELLOTRON_SOUNDS = {"flute", "strings", "choir"};
     private String mellotronSound = "";
 
-    /** The button: off, flute, strings, choir, off again. */
+    /** The button: steps through the sounds this device has (built in or downloaded), then off. With none yet (the
+     *  lite version), it opens the list of sounds to download. A long press always opens the list. */
     private void nextMellotron() {
-        int i = java.util.Arrays.asList(MELLOTRON_SOUNDS).indexOf(mellotronSound);
-        setMellotron(i + 1 < MELLOTRON_SOUNDS.length ? MELLOTRON_SOUNDS[i + 1] : "");
+        java.util.List<String> have = Sounds.installed(this);
+        if (have.isEmpty()) {
+            openSounds();
+            return;
+        }
+        int i = have.indexOf(mellotronSound);
+        setMellotron(i + 1 < have.size() ? have.get(i + 1) : "");
     }
 
     /** The Mellotron playing `sound` ("" for off; remembered): the FM-1's own keys play it, out of this device. */
     private void setMellotron(String sound) {
-        if (!java.util.Arrays.asList(MELLOTRON_SOUNDS).contains(sound)) sound = "";
+        if (!Sounds.installed(this).contains(sound)) sound = "";
         if (mellotron != null && !sound.equals(mellotronSound)) {
             played.fm1.tap = null;
             mellotron.stop();
@@ -1381,7 +1389,104 @@ public class MainActivity extends Activity {
         }
         mellotronSound = sound;
         prefs.edit().putString("mellotronSound", sound).remove("mellotron").apply();
-        mellotronButton.setText(sound.isEmpty() ? "Mellotron: off" : "Mellotron: " + sound);
+        mellotronButton.setText(!sound.isEmpty() ? "Mellotron: " + sound
+                : Sounds.installed(this).isEmpty() ? "Mellotron: get sounds" : "Mellotron: off");
+    }
+
+    /** "Mellotron sounds": what's on the list online, each with Download (or Remove, if downloaded). Built-in sounds
+     *  can't be removed. Offline: the sounds this device has, and why the list can't be shown. */
+    private void openSounds() {
+        android.app.ProgressDialog wait = android.app.ProgressDialog.show(this, "Mellotron sounds", "Getting the list of sounds…", true, true);
+        new Thread(() -> {
+            java.util.List<Sounds.Pack> packs = null;
+            String err = null;
+            try {
+                packs = Sounds.list();
+            } catch (java.io.IOException e) {
+                err = e.getMessage();
+            }
+            final java.util.List<Sounds.Pack> list = packs;
+            final String why = err;
+            main.post(() -> {
+                wait.dismiss();
+                if (isFinishing()) return;
+                showSounds(list, why);
+            });
+        }, "Sounds list").start();
+    }
+
+    private void showSounds(java.util.List<Sounds.Pack> packs, String why) {
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Runnable> acts = new java.util.ArrayList<>();
+        java.util.List<String> have = Sounds.installed(this);
+        if (packs != null) {
+            for (Sounds.Pack p : packs) {
+                boolean built = Sounds.bundled(this, p.id), got = Sounds.downloaded(this, p.id);
+                String mb = String.format(java.util.Locale.US, "%.1f MB", p.bytes / 1048576.0);
+                if (built) {
+                    labels.add(p.name + "  (built in)");
+                    acts.add(null);
+                } else if (got) {
+                    labels.add(p.name + "  (downloaded: tap to remove)");
+                    acts.add(() -> removeSound(p));
+                } else {
+                    labels.add(p.name + "  (download, " + mb + ")");
+                    acts.add(() -> downloadSound(p));
+                }
+            }
+        } else {
+            for (String id : have) {
+                labels.add(id + (Sounds.bundled(this, id) ? "  (built in)" : "  (downloaded)"));
+                acts.add(null);
+            }
+        }
+        AlertDialog.Builder b = new AlertDialog.Builder(this).setTitle("Mellotron sounds")
+                .setNegativeButton("Close", null);
+        if (packs == null)
+            b.setMessage("The list of sounds can't be reached now (" + why + "). Check the internet connection and try again."
+                    + (have.isEmpty() ? "" : "\n\nOn this device: " + String.join(", ", have) + "."));
+        if (!labels.isEmpty())
+            b.setItems(labels.toArray(new String[0]), (d, which) -> {
+                Runnable r = acts.get(which);
+                if (r != null) r.run();
+            });
+        b.show();
+    }
+
+    private void downloadSound(Sounds.Pack p) {
+        android.app.ProgressDialog wait = android.app.ProgressDialog.show(this, "Mellotron sounds",
+                "Downloading " + p.name + "…", true, false);
+        new Thread(() -> {
+            String err = null;
+            try {
+                Sounds.download(this, p);
+            } catch (java.io.IOException e) {
+                err = e.getMessage();
+            }
+            final String why = err;
+            main.post(() -> {
+                wait.dismiss();
+                if (why != null) {
+                    new AlertDialog.Builder(this).setTitle("Mellotron sounds")
+                            .setMessage(p.name + " couldn't be downloaded (" + why + "). Try again later.")
+                            .setPositiveButton("OK", null).show();
+                    return;
+                }
+                setMellotron(p.id);                              // play it straight away
+                android.widget.Toast.makeText(this, p.name + " is ready: the Mellotron button steps through it", android.widget.Toast.LENGTH_LONG).show();
+            });
+        }, "Sound download").start();
+    }
+
+    private void removeSound(Sounds.Pack p) {
+        new AlertDialog.Builder(this).setTitle("Remove " + p.name + "?")
+                .setMessage("It can be downloaded again from this list any time.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Remove", (d, w) -> {
+                    if (p.id.equals(mellotronSound)) setMellotron("");
+                    Sounds.remove(this, p.id);
+                    setMellotron(mellotronSound);                // (the label: "get sounds" when none are left)
+                }).show();
     }
 
     private void toggleSmooth() {
