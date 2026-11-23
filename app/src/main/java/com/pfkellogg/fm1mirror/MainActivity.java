@@ -163,10 +163,13 @@ public class MainActivity extends Activity {
         mirrorOn = prefs.getBoolean("mirror", true);
         smoothOn = true;                                  // always on at start (the button turns it off until the app closes)
         keysButton = button("MIDI", v -> chooseMidi());
+        labelsOf.put(keysButton, new String[] {"MIDI: Keystation 49"}); // (a longer name is cut short)
         bar.addView(keysButton);
         mirrorButton = button("", v -> setMirror(!mirrorOn));
+        labelsOf.put(mirrorButton, new String[] {"Hide mirror", "Show mirror"});
         bar.addView(mirrorButton);
         smoothButton = button("", v -> toggleSmooth());
+        labelsOf.put(smoothButton, new String[] {"Smooth: on", "Smooth: off"});
         bar.addView(smoothButton);
         mellotronButton = button("", v -> nextMellotron());
         mellotronButton.setOnLongClickListener(v -> {
@@ -1751,30 +1754,59 @@ public class MainActivity extends Activity {
      *  one (Full screen) is never cut off on a narrower screen or with a longer label ("Mellotron: strings"). */
     private float barScale = 1f;
 
+    /** The labels a button can show (its widest sets its width, so a label changing never moves the bar). */
+    private final java.util.Map<Button, String[]> labelsOf = new java.util.HashMap<>();
+
+    private String[] labels(Button b) {
+        if (b == mellotronButton) {
+            java.util.List<String> l = new java.util.ArrayList<>();
+            for (String x : Sounds.installed(this)) l.add("Mellotron: " + x);
+            l.add("Mellotron: off");
+            l.add("Mellotron: get sounds");
+            return l.toArray(new String[0]);
+        }
+        if (b == lookButton) {
+            Codec.Look[] all = Codec.Look.values();
+            String[] l = new String[all.length];
+            for (int i = 0; i < all.length; i++) l[i] = all[i].label;
+            return l;
+        }
+        String[] l = labelsOf.get(b);
+        return l != null ? l : new String[] {b.getText().toString()};
+    }
+
     private void fitBar() {
-        int avail = bar.getWidth() - bar.getPaddingLeft() - bar.getPaddingRight() - (lights != null ? lights.getWidth() : 0);
+        int avail = bar.getWidth() - bar.getPaddingLeft() - bar.getPaddingRight() - (lights != null && lights.getVisibility() == View.VISIBLE ? lights.getWidth() : 0);
         if (avail <= 0) return;
+        android.graphics.Paint paint = new android.graphics.Paint(mellotronButton.getPaint());
+        paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics()));
+        java.util.List<Button> bs = new java.util.ArrayList<>();
+        java.util.List<Float> widest = new java.util.ArrayList<>();
         float need = 0;
         for (int i = 0; i < bar.getChildCount(); i++) {
             View c = bar.getChildAt(i);
             if (!(c instanceof Button) || c.getVisibility() != View.VISIBLE) continue;
             Button b = (Button) c;
-            // its width at the usual size: the text measured at 20 dp, the usual padding and margins
-            android.graphics.Paint p = new android.graphics.Paint(b.getPaint());
-            p.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics()));
-            need += p.measureText(b.getText().toString()) + dp(18) * 2 + dp(6) * 2;
+            float w = 0;
+            for (String l : labels(b)) w = Math.max(w, paint.measureText(l));
+            bs.add(b);
+            widest.add(w);
+            need += w + dp(18) * 2 + dp(6) * 2;
         }
-        float s = need <= avail ? 1f : Math.max(0.55f, avail / need * 0.97f);
-        if (Math.abs(s - barScale) < 0.01f) return;
-        barScale = s;
-        for (int i = 0; i < bar.getChildCount(); i++) {
-            View c = bar.getChildAt(i);
-            if (!(c instanceof Button)) continue;
-            Button b = (Button) c;
-            b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20 * s);
-            b.setPadding(Math.round(dp(18) * s), dp(10), Math.round(dp(18) * s), dp(10));
+        float sc = need <= avail ? 1f : Math.max(0.55f, avail / need * 0.97f);
+        boolean same = Math.abs(sc - barScale) < 0.01f;
+        barScale = sc;
+        for (int i = 0; i < bs.size(); i++) {
+            Button b = bs.get(i);
+            int width = Math.round((widest.get(i) + dp(18) * 2) * sc);
+            if (same && b.getWidth() == width) continue;
+            b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20 * sc);
+            b.setPadding(Math.round(dp(18) * sc), dp(10), Math.round(dp(18) * sc), dp(10));
+            b.setSingleLine(true);
+            b.setEllipsize(android.text.TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) b.getLayoutParams();
-            int m = Math.round(dp(6) * s);
+            lp.width = width;
+            int m = Math.round(dp(6) * sc);
             lp.setMargins(m, dp(6), m, dp(6));
             b.setLayoutParams(lp);
         }

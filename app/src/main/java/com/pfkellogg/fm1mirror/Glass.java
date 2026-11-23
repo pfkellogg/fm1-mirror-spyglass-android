@@ -535,11 +535,34 @@ final class Glass extends FrameLayout {
     }
 
     /** The waveform: the FM-1's real sound while it's heard (a flat line while it's quiet), else drawn from the notes. */
-    private float[] waveNow() {
+    /** The second sound's waveform (the Mellotron, while the FM-1 plays too): gold. */
+    private static final int WAVE2 = 0xfff2b83c;
+
+    /** One waveform across r (nothing playing: no line at all). */
+    private void trace(Canvas c, float[] w, int colour) {
+        if (w == null || w.length < 2) return;
+        waveLine.reset();
+        p.setColor(colour);
+        for (int i = 0; i < w.length; i++) {
+            float x = r.left + r.width() * i / (w.length - 1), y = r.centerY() - w[i] * r.height() / 2;
+            if (i == 0) waveLine.moveTo(x, y);
+            else waveLine.lineTo(x, y);
+        }
+        c.drawPath(waveLine, p);
+    }
+
+    /** The Mellotron's own waveform while it plays, else null. */
+    private float[] mellotronWave() {
         Mellotron m = Mellotron.active;
-        if (m != null && m.sounding()) {                       // the Mellotron's own sound, while it plays
-            double hz = hz();
-            float[] w = hz > 0 ? m.wave(hz) : null;
+        if (m == null || !m.sounding()) return null;
+        double hz = hz();
+        return hz > 0 ? m.wave(hz) : null;
+    }
+
+    /** The waveform: the Mellotron's while it plays (when only it is heard: its FM-1 light dark), else the FM-1's. */
+    private float[] waveNow() {
+        if (MainActivity.fm1Down) {
+            float[] w = mellotronWave();
             if (w != null) return w;
         }
         if (fm1Plays && hearing()) {
@@ -622,17 +645,14 @@ final class Glass extends FrameLayout {
             p.setStyle(Paint.Style.STROKE);
             p.setStrokeWidth(Math.max(2 * density, d * 0.006f));
             p.setStrokeJoin(Paint.Join.ROUND);
-            float[] w = waveNow();
-            waveLine.reset();
-            if (w != null) {
-                p.setColor(WAVE);
-                for (int i = 0; i < w.length; i++) {
-                    float x = r.left + r.width() * i / (w.length - 1), y = r.centerY() - w[i] * r.height() / 2;
-                    if (i == 0) waveLine.moveTo(x, y);
-                    else waveLine.lineTo(x, y);
-                }
-            } // (nothing playing: no line at all)
-            c.drawPath(waveLine, p);
+            // Both sounds (the FM-1 light lit): the FM-1's in blue and the Mellotron's over it in gold; else one.
+            float[] w = waveNow(), w2 = MainActivity.fm1Down ? null : mellotronWave();
+            if (w == null && w2 != null) {
+                w = w2;
+                w2 = null;
+            }
+            trace(c, w, WAVE);
+            trace(c, w2, WAVE2);
         }
         if (shownChord == null && shownVel > 0) {
             // How hard the key was hit: a short brass bar under it, full at 127.
