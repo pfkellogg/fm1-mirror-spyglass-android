@@ -1504,6 +1504,8 @@ public class MainActivity extends Activity {
         if (fm1Light != null) {
             showLight(fm1Light, !down);
             showLight(melLight, !mellotronSound.isEmpty());
+            // only with a Mellotron to hear: always in Max; in Basic once a sound has been downloaded
+            lights.setVisibility(Sounds.installed(this).isEmpty() ? View.GONE : View.VISIBLE);
         }
     }
 
