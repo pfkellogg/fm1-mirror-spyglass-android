@@ -19,8 +19,10 @@ package com.pfkellogg.fm1mirror;
 final class Fm1Base {
     private Fm1Base() {}
 
-    static final int NOTHING = 0, HELLO = 1, PAINTED = 2;
-    private static final int REQUEST = 0x50, RECT = 0x51, FILL = 0x52, SIZE = Codec.SIZE;
+    static final int NOTHING = 0, HELLO = 1, PAINTED = 2, LIGHTS = 3, ANSWERED = 4;
+    private static final int REQUEST = 0x50, RECT = 0x51, FILL = 0x52, INPUT = 0x53, REMOTE = 0x54, SIZE = Codec.SIZE;
+    /** The lights of the last input report (LIGHTS): Big Knobs and Key Lights speak its panel messages (Panel). */
+    static volatile Panel.Lights lights;
 
     /** Asks for the screen: 2 on with the whole screen again, 1 keep on, 0 off. */
     static byte[] request(int what) {
@@ -34,10 +36,100 @@ final class Fm1Base {
         int command = f[0][0] & 255;
         byte[] b = f[1];
         if (command == REQUEST) return HELLO;
+        if (command == INPUT) {
+            Panel.Lights l = lights(b);
+            if (l == null) return NOTHING;
+            lights = l;
+            return LIGHTS;
+        }
+        if (command == REMOTE) return ANSWERED;
         if (command == RECT) return rect(pixels, b) ? PAINTED : NOTHING;
         if (command == FILL) return fill(pixels, b) ? PAINTED : NOTHING;
         return NOTHING;
     }
+
+    /** Its B_* (FX SEL ENV LFO EDIT GLO HOME SAVE ARP SEQ PLAY REC OCT- OCT+) as our button ids (Panel.BUTTONS). */
+    private static int ourButtons(int b) {
+        int m = 0;
+        for (int i = 0; i < 14; i++)
+            if ((b >> i & 1) == 1) m |= 1 << (i < 12 ? i + 2 : i - 12);
+        if ((b >> 15 & 1) == 1) m |= 1 << 12; // PLAY lit red: lit
+        return m;
+    }
+
+    /** Its input report (0x53): the lit buttons u16 at 15, lit keys u32 at 17, then (version 4) the dim ones at 21, 23. */
+    static Panel.Lights lights(byte[] b) {
+        if (b.length < 21) return null;
+        int btns = ourButtons((b[15] & 255) | (b[16] & 255) << 8), keys = le32(b, 17) & ((1 << 27) - 1);
+        if (b.length < 27) return new Panel.Lights(keys, btns, 0, 0);
+        return new Panel.Lights(keys, btns, le32(b, 23) & ((1 << 27) - 1) & ~keys,
+                ourButtons((b[21] & 255) | (b[22] & 255) << 8) & ~btns);
+    }
+
+    private static int le32(byte[] b, int i) {
+        return (b[i] & 255) | (b[i + 1] & 255) << 8 | (b[i + 2] & 255) << 16 | (b[i + 3] & 255) << 24;
+    }
+
+    /** Big Knobs through its remote (0x54: seq, op, a, b, c), one command at a time: turns gathered per knob, presses in order. */
+    static final class Remote {
+        private int seq;
+        private long waiting;
+        private final int[] turns = new int[7];
+        private int master = -1;
+        private final java.util.ArrayDeque<int[]> presses = new java.util.ArrayDeque<>();
+
+        /** A Big Screen build's message (Panel: 04 turn, 06 MASTER, 07 press), in its terms. */
+        synchronized void take(byte[] m) {
+            if (m.length != 8) return;
+            if (m[4] == 4) {
+                int en = new int[] {0, 1, 3, 4, 5, 6, 2}[Math.min(6, m[5] & 7)], n = m[6] & 127;
+                turns[en] = Math.max(-127, Math.min(127, turns[en] + (n >= 64 ? n - 128 : n)));
+            } else if (m[4] == 6) {
+                master = ((m[5] & 127) | (m[6] & 127) << 7) * 4096 / 1023;
+            } else if (m[4] == 7) {
+                int id = m[5] & 127;
+                presses.add(id < 14 ? new int[] {1, id >= 2 ? id - 2 : 12 + id, m[6]} : new int[] {2, Math.min(26, id - 14), m[6]});
+            }
+        }
+
+        synchronized void answered() {
+            waiting = 0;
+        }
+
+        synchronized void clear() {
+            java.util.Arrays.fill(turns, 0);
+            master = -1;
+            presses.clear();
+            waiting = 0;
+        }
+
+        /** The next command to send, or null (none waiting, or one on its way: 300 ms for a lost answer). */
+        synchronized byte[] next() {
+            long now = System.currentTimeMillis();
+            if (waiting != 0 && now - waiting < 300) return null;
+            int[] body = null;
+            if (!presses.isEmpty()) {
+                int[] p = presses.poll();
+                body = new int[] {p[0], p[1], p[2]};
+            } else {
+                for (int e = 0; e < 7 && body == null; e++)
+                    if (turns[e] != 0) {
+                        body = new int[] {3, e, turns[e] & 255};
+                        turns[e] = 0;
+                    }
+                if (body == null && master >= 0) {
+                    body = new int[] {4, master & 255, master >> 8};
+                    master = -1;
+                }
+            }
+            if (body == null) return null;
+            seq = (seq + 1) & 255;
+            waiting = now;
+            return Codec.frame(REMOTE, new byte[] {(byte) seq, (byte) body[0], (byte) body[1], (byte) body[2], 0});
+        }
+    }
+
+    static final Remote panel = new Remote();
 
     /** An updater-framed message of any length: {{command}, body}, or null. */
     private static byte[][] parse(byte[] m) {

@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
-        <!-- Debug builds only: a pretend FM-1 for testing without one (Simulator.java). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Its own name, so a test build is never taken for the real app -->
+    <application android:label="FM-1 TEST" tools:replace="android:label">
+        <!-- Debug builds only: a pretend FM-1 for testing without one (Simulator.java). Off (enabled="false"): with it on,
+             its test colours show and it can be taken for the real FM-1. Set true to test without an FM-1. -->
         <service
             android:name=".Simulator"
+            android:enabled="false"
             android:exported="true"
             android:permission="android.permission.BIND_MIDI_DEVICE_SERVICE">
             <intent-filter>

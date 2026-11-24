@@ -78,6 +78,10 @@ public class MainActivity extends Activity {
     private volatile boolean lost, running;
     /** The FM-1 answered Charles Vestal's mirror (Fm1Base: fm1-base firmware with mirror = true): keep it on. */
     private volatile boolean baseOn;
+    /** Big Knobs and Key Lights (Panel): the strip and the knobs under the FM-1's screen, and their buttons. */
+    private Panel.PanelView panelView, knobsView;
+    private Button knobsButton, lightsButton;
+    private boolean knobsOn, lightsOn;
     /** Which link thread is the live one: leaving and coming back quickly mustn't leave two fighting over the FM-1. */
     private volatile int linkGen;
     /** Playing on behind another app: no screen asked for (the FM-1 stops sending 3 s after the last hello). */
@@ -212,6 +216,22 @@ public class MainActivity extends Activity {
         // (1.6.8 remembered just on / off: on was the flute)
         setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
         Demo.startIfDebug(this, played.keys);
+        knobsOn = prefs.getBoolean("knobs", false);
+        lightsOn = prefs.getBoolean("lights", false);
+        knobsButton = button("", v -> {
+            knobsOn = !knobsOn;
+            prefs.edit().putBoolean("knobs", knobsOn).apply();
+            showPanel();
+        });
+        labelsOf.put(knobsButton, new String[] {"Knobs: on", "Knobs: off"});
+        bar.addView(knobsButton);
+        lightsButton = button("", v -> {
+            lightsOn = !lightsOn;
+            prefs.edit().putBoolean("lights", lightsOn).apply();
+            showPanel();
+        });
+        labelsOf.put(lightsButton, new String[] {"Lights: on", "Lights: off"});
+        bar.addView(lightsButton);
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
         lookButton = button(look.label, v -> nextLook());
         bar.addView(lookButton);
@@ -236,6 +256,21 @@ public class MainActivity extends Activity {
         panelScroll.addView(panel);
         stage.addView(panelScroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         root.addView(stage, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
+        // Big Knobs over the screen's empty sides (they take no room from it); Key Lights, a slim strip under it
+        knobsView = new Panel.PanelView(this, this::sendPanel);
+        knobsView.asOverlay();
+        stage.addView(knobsView, stage.indexOfChild(screen) + 1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        panelView = new Panel.PanelView(this, this::sendPanel) {
+            @Override
+            protected void onDraw(android.graphics.Canvas c) {
+                setPlayed(Panel.playedKeys(played.keysDown()));
+                super.onDraw(c);
+                if (getVisibility() == View.VISIBLE) postInvalidateDelayed(60); // the notes being played, in blue
+            }
+        };
+        panelView.asStrip();
+        root.addView(panelView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0));
+        showPanel();
         // A TV crops the picture's edges (overscan): keep the FM-1's screen, and its bottom row, inside the safe area.
         tv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
         if (tv)
@@ -457,6 +492,9 @@ public class MainActivity extends Activity {
                     askedIdentity = askedBuild = askedInfo = false;
                     asker = new BigScreen2.Asker();
                     baseOn = false;
+                    Fm1Base.panel.clear(); // a new link: its lights and remote found again
+                    Fm1Base.lights = null;
+                    panelView.setLights(null);
                     baseAsked = 0;
                     baseFirst = true;
                     helloAt = 0;
@@ -501,6 +539,8 @@ public class MainActivity extends Activity {
                     // Charles Vestal's mirror (fm1-base firmware): asked three times; once it answers, kept on every
                     // 2 s (it stops after 6), and the whole screen again when the app comes back to the front.
                     if (baseOn) {
+                        byte[] next = Fm1Base.panel.next(); // Big Knobs' turns still waiting for the last answer
+                        if (next != null) l.send(next);
                         if (behind) {
                             baseFirst = true;
                         } else if (now - baseAt >= 2000) {
@@ -1005,6 +1045,11 @@ public class MainActivity extends Activity {
     }
 
     private void onMessage(byte[] m) {
+        Panel.Lights lit = Panel.lights(m);
+        if (lit != null) {
+            panelView.setLights(lit);
+            return;
+        }
         String name = Codec.sound(m);
         if (name != null) {
             setSound(name.isEmpty() ? null : name);
@@ -1047,6 +1092,14 @@ public class MainActivity extends Activity {
             int got = Fm1Base.apply(pixels, m); // Charles Vestal's mirror (fm1-base firmware)
             if (got == Fm1Base.HELLO) {
                 baseOn = true;
+                return;
+            }
+            if (got == Fm1Base.LIGHTS) {
+                panelView.setLights(Fm1Base.lights);
+                return;
+            }
+            if (got == Fm1Base.ANSWERED) {
+                Fm1Base.panel.answered();
                 return;
             }
             if (got == Fm1Base.PAINTED) {
@@ -1642,6 +1695,37 @@ public class MainActivity extends Activity {
                     Sounds.remove(this, p.id);
                     setMellotron(mellotronSound);                // (the label: "get sounds" when none are left)
                 }).show();
+    }
+
+    /** The strip and the knobs, as their buttons say. */
+    private void showPanel() {
+        knobsButton.setText(knobsOn ? "Knobs: on" : "Knobs: off");
+        lightsButton.setText(lightsOn ? "Lights: on" : "Lights: off");
+        panelView.showLights = lightsOn;
+        panelView.setVisibility(lightsOn ? View.VISIBLE : View.GONE);
+        knobsView.setVisibility(knobsOn ? View.VISIBLE : View.GONE);
+        knobsView.invalidate();
+        ViewGroup.LayoutParams lp = panelView.getLayoutParams();
+        lp.height = panelView.wanted();
+        panelView.setLayoutParams(lp);
+        panelView.invalidate();
+    }
+
+    /** A Big Knobs / remote press message to the FM-1: as it is to a Big Screen build, as Charles Vestal's remote to fm1-base. */
+    private void sendPanel(byte[] m) {
+        Fm1Port l = link;
+        if (l == null) return;
+        try {
+            if (baseOn) {
+                Fm1Base.panel.take(m);
+                byte[] f = Fm1Base.panel.next();
+                if (f != null) l.send(f);
+            } else {
+                l.send(m);
+            }
+        } catch (IOException e) {
+            lost = true;
+        }
     }
 
     private void toggleSmooth() {
