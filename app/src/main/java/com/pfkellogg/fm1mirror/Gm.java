@@ -22,6 +22,11 @@ final class Gm {
     };
 
     /** Its General MIDI name and number (synths that aren't General MIDI number their sounds their own way); on channel 10, the drums. */
+    /** A General MIDI instrument's name (Rich's instruments). */
+    static String name(int program) {
+        return NAMES[program & 127];
+    }
+
     static String soundName(int channel, int program) {
         if (channel == 9) return "Drums · " + (program + 1);
         return NAMES[program & 127] + " · " + (program + 1);

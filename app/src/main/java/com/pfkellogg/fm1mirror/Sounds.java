@@ -67,6 +67,7 @@ final class Sounds {
         }
         File[] d = new File(ctx.getFilesDir(), "sounds").listFiles();
         if (d != null) for (File f : d) if (downloaded(ctx, f.getName()) && !ids.contains(f.getName())) ids.add(f.getName());
+        if (Rich.downloaded(ctx) && !ids.contains(Rich.ID)) ids.add(Rich.ID);   // Rich sounds (Rich.java)
         ids.sort((a, b) -> {
             int ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
             if (ia >= 0 || ib >= 0) return Integer.compare(ia < 0 ? 99 : ia, ib < 0 ? 99 : ib);

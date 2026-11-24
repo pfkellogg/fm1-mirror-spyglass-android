@@ -50,6 +50,8 @@ final class Mellotron {
     }
 
     private final short[][] strips = new short[HIGH + 1][];
+    /** Rich sounds (sound "rich"): a SoundFont synth in place of the strips (Rich.java). */
+    private volatile Rich rich;
     private volatile boolean loaded, stop;
     private final List<Voice> voices = new ArrayList<>();
     private Thread player;
@@ -80,7 +82,15 @@ final class Mellotron {
         if (player != null) return;
         active = this;
         Context app = ctx.getApplicationContext();
-        Thread load = new Thread(() -> load(app, set), "Mellotron strips");
+        Thread load = new Thread(() -> {
+            if (Rich.ID.equals(set)) {                                      // Rich: the synth, not strips
+                rich = Rich.open(app, outRate(app));
+                loaded = rich != null;
+                Log.i(TAG, "rich: " + (loaded ? "ready" : "not available"));
+            } else {
+                load(app, set);
+            }
+        }, "Mellotron strips");
         load.setDaemon(true);
         load.start();
         player = new Thread(() -> play(app), "Mellotron");
@@ -342,7 +352,7 @@ final class Mellotron {
                 p.d1 = b;
                 continue;
             }
-            if (type == 0x90 && b > 0) noteOn(p.d1);
+            if (type == 0x90 && b > 0) noteOn(p.d1, b);
             else if (type == 0x80 || type == 0x90) noteOff(p.d1);
             else if (type == 0xb0 && (p.d1 == 120 || p.d1 == 123)) allOff();
             p.d1 = -1;
@@ -355,8 +365,12 @@ final class Mellotron {
         return note;
     }
 
-    private void noteOn(int note) {
+    private void noteOn(int note, int vel) {
         if (!loaded) return;
+        if (rich != null) {                                               // (Rich: every key, as hard as it's played)
+            rich.noteOn(note, vel);
+            return;
+        }
         int key = fold(note);
         short[] s = strips[key];
         if (s == null) return;
@@ -366,11 +380,16 @@ final class Mellotron {
     }
 
     private void noteOff(int note) {
+        if (rich != null) {
+            rich.noteOff(note);
+            return;
+        }
         int key = fold(note);
         for (Voice v : voices) if (v.key == key) v.released = true;
     }
 
     synchronized void allOff() {
+        if (rich != null) rich.allOff();
         for (Voice v : voices) v.released = true;
     }
 
@@ -440,7 +459,7 @@ final class Mellotron {
         track.play();
         AudioDeviceInfo was = ownOutput(ctx);
         long nextCheck = 0;
-        float[] mix = new float[BLOCK], mono = new float[BLOCK], lr = new float[2 * BLOCK];
+        float[] mix = new float[BLOCK], mono = new float[BLOCK], lr = new float[2 * BLOCK], richOut = new float[BLOCK];
         short[] out = new short[BLOCK], st = new short[2 * BLOCK];               // (stereo: Sweeten's width)
         Sweeten sweet = new Sweeten(out_);
         float attack = 1f / (0.004f * out_);                                 // the tape meets the head: 4 ms
@@ -459,6 +478,10 @@ final class Mellotron {
             long w0 = System.nanoTime();
             java.util.Arrays.fill(mix, 0f);
             synchronized (this) {
+                if (rich != null) {                                           // Rich: its synth, scaled to the strips' units
+                    rich.render(richOut, BLOCK);
+                    for (int k = 0; k < BLOCK; k++) mix[k] = richOut[k] * (32768f / 0.3f);
+                }
                 // lean on purpose: locals, no doubles per sample (the first version took 20 ms or more for a 5 ms
                 // block with six voices on a small tablet, and the sound ran dry 25 times a second)
                 for (int i = voices.size() - 1; i >= 0; i--) {
@@ -530,5 +553,9 @@ final class Mellotron {
         }
         track.stop();
         track.release();
+        synchronized (this) {
+            if (rich != null) rich.close();                                // (its 32 MB back)
+            rich = null;
+        }
     }
 }

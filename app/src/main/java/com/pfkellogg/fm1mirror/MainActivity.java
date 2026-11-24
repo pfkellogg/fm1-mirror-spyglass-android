@@ -184,11 +184,12 @@ public class MainActivity extends Activity {
         smoothButton = button("", v -> toggleSmooth());
         labelsOf.put(smoothButton, new String[] {"Smooth"});
         bar.addView(smoothButton);
-        mellotronButton = button("", v -> nextMellotron());
+        mellotronButton = button("", v -> soundMenu());          // one Sound menu (as the desktop's, 1.3.26)
         mellotronButton.setOnLongClickListener(v -> {
-            openSounds();
+            soundMenu();
             return true;
         });
+        Rich.pick = prefs.getInt("richPick", -1) < 0 ? null : prefs.getInt("richPick", -1);
         bar.addView(mellotronButton);
         // Two lights, stacked: what you hear. Lit (green) = you hear it; tap one to switch it (remembered).
         fm1WithMellotron = prefs.getBoolean("fm1WithMellotron", true);
@@ -221,7 +222,7 @@ public class MainActivity extends Activity {
             showLight(sweetLight, Sweeten.on);
         });
         lights.addView(sweetLight);
-        bar.addView(lights);
+        // (the FM-1 / Mellotron lights and Sweeten: in the Sound menu now, "Hear the FM-1 too" and "Sweeten")
         // (1.6.8 remembered just on / off: on was the flute)
         setMellotron(prefs.getString("mellotronSound", prefs.getBoolean("mellotron", false) ? "flute" : ""));
         Demo.startIfDebug(this, played.keys);
@@ -1034,6 +1035,8 @@ public class MainActivity extends Activity {
     private void setSound(String name) {
         if (java.util.Objects.equals(name, sound)) return;
         sound = name; // (the spyglass reads it)
+        Rich.fm1Sound = name == null ? "" : name;                        // Rich's Auto follows it
+
     }
 
     /** The spyglass on or off; it stays as it was next time. */
@@ -1561,6 +1564,65 @@ public class MainActivity extends Activity {
         setMellotron(i + 1 < have.size() ? have.get(i + 1) : "");
     }
 
+    /** The Sound button's words: what you hear. */
+    private String soundLabel() {
+        if (mellotronSound.isEmpty()) return "Sound: FM-1";              // (short: the bar has one row; the instrument
+        if (Rich.ID.equals(mellotronSound)) return "Sound: Rich";        //  is in the Sound menu)
+        return "Sound: " + mellotronSound;
+    }
+
+    /** The Sound menu: what you hear, in one tap (touch or the TV remote). FM-1 only, Rich sounds, a Mellotron; Hear
+     *  the FM-1 too; Sweeten; Rich's instrument; Get sounds. */
+    private void soundMenu() {
+        java.util.List<String> labels = new java.util.ArrayList<>();
+        java.util.List<Runnable> acts = new java.util.ArrayList<>();
+        labels.add((mellotronSound.isEmpty() ? "✓ " : "    ") + "FM-1 only");
+        acts.add(() -> setMellotron(""));
+        for (String id : Sounds.installed(this)) {
+            boolean on = id.equals(mellotronSound);
+            labels.add((on ? "✓ " : "    ") + (Rich.ID.equals(id) ? "Rich sounds" : "Mellotron " + id));
+            acts.add(() -> setMellotron(id));
+        }
+        if (!mellotronSound.isEmpty()) {
+            labels.add("Hear the FM-1 too: " + (fm1WithMellotron ? "on" : "off"));
+            acts.add(() -> {
+                fm1WithMellotron = !fm1WithMellotron;
+                prefs.edit().putBoolean("fm1WithMellotron", fm1WithMellotron).apply();
+                applyFm1Light();
+                soundMenu();
+            });
+            labels.add("Sweeten: " + (Sweeten.on ? "on" : "off"));
+            acts.add(() -> {
+                Sweeten.on = !Sweeten.on;
+                prefs.edit().putBoolean("sweeten", Sweeten.on).apply();
+                showLight(sweetLight, Sweeten.on);
+                soundMenu();
+            });
+        }
+        if (Rich.ID.equals(mellotronSound)) {
+            labels.add("Rich's instrument: " + (Rich.pick == null ? "Auto · " : "") + Gm.name(Rich.program()) + " ›");
+            acts.add(this::richInstrument);
+        }
+        labels.add("Get sounds…");
+        acts.add(this::openSounds);
+        dialog().setTitle("Sound").setItems(labels.toArray(new String[0]), (d, w) -> acts.get(w).run())
+                .setNegativeButton("Close", null).show();
+    }
+
+    /** Rich's instrument: Auto (follows the sound the FM-1 names) or one of the 128. */
+    private void richInstrument() {
+        String[] items = new String[129];
+        items[0] = "Auto · " + Gm.name(Rich.programFor(Rich.fm1Sound)) + " (follows the FM-1)";
+        for (int i = 0; i < 128; i++) items[i + 1] = Gm.name(i);
+        int at = Rich.pick == null ? 0 : Rich.pick + 1;
+        dialog().setTitle("Rich's instrument").setSingleChoiceItems(items, at, (d, w) -> {
+            Rich.pick = w == 0 ? null : w - 1;
+            prefs.edit().putInt("richPick", w == 0 ? -1 : w - 1).apply();
+            mellotronButton.setText(soundLabel());
+            d.dismiss();
+        }).setNegativeButton("Close", null).show();
+    }
+
     /** The Mellotron playing `sound` ("" for off; remembered): the FM-1's own keys play it, out of this device. */
     private void setMellotron(String sound) {
         if (!Sounds.installed(this).contains(sound)) sound = "";
@@ -1578,8 +1640,7 @@ public class MainActivity extends Activity {
         mellotronSound = sound;
         prefs.edit().putString("mellotronSound", sound).remove("mellotron").apply();
         applyFm1Light();
-        mellotronButton.setText(!sound.isEmpty() ? "Mellotron: " + sound
-                : Sounds.installed(this).isEmpty() ? "Mellotron: get sounds" : "Mellotron: off");
+        mellotronButton.setText(soundLabel());
     }
 
     // ---- the FM-1's own sound while the Mellotron plays
@@ -1695,7 +1756,12 @@ public class MainActivity extends Activity {
                 acts.add(null);
             }
         }
-        AlertDialog.Builder b = dialog().setTitle("Mellotron sounds")
+        if (Rich.supported()) {                                          // Rich sounds: GeneralUser GS, 32 MB (Rich.java)
+            labels.add(0, Rich.downloaded(this) ? "Rich sounds, 128 instruments  (downloaded: tap to remove)"
+                    : "Rich sounds, 128 instruments  (download, 32 MB)");
+            acts.add(0, Rich.downloaded(this) ? this::removeRich : this::downloadRich);
+        }
+        AlertDialog.Builder b = dialog().setTitle("Sounds")
                 .setNegativeButton("Close", null);
         if (packs == null)
             b.setMessage("The list of sounds can't be reached now (" + why + "). Check the internet connection and try again."
@@ -1728,9 +1794,50 @@ public class MainActivity extends Activity {
                     return;
                 }
                 setMellotron(p.id);                              // play it straight away
-                android.widget.Toast.makeText(this, p.name + " is ready: the Mellotron button steps through it", android.widget.Toast.LENGTH_LONG).show();
+                android.widget.Toast.makeText(this, p.name + " is ready: pick it in the Sound menu", android.widget.Toast.LENGTH_LONG).show();
             });
         }, "Sound download").start();
+    }
+
+    private void downloadRich() {
+        android.app.ProgressDialog wait = new android.app.ProgressDialog(this);
+        wait.setTitle("Rich sounds");
+        wait.setMessage("Downloading GeneralUser GS (32 MB)…");
+        wait.setProgressStyle(android.app.ProgressDialog.STYLE_HORIZONTAL);
+        wait.setMax(100);
+        wait.setCancelable(false);
+        wait.show();
+        new Thread(() -> {
+            String err = null;
+            try {
+                Rich.download(this, pc -> main.post(() -> wait.setProgress(Math.max(0, pc))));
+            } catch (java.io.IOException e) {
+                err = e.getMessage();
+            }
+            final String why = err;
+            main.post(() -> {
+                wait.dismiss();
+                if (why != null) {
+                    dialog().setTitle("Rich sounds")
+                            .setMessage("It couldn't be downloaded (" + why + "). Try again later.")
+                            .setPositiveButton("OK", null).show();
+                    return;
+                }
+                setMellotron(Rich.ID);                            // play it straight away
+                android.widget.Toast.makeText(this, "Rich sounds are ready: pick them in the Sound menu", android.widget.Toast.LENGTH_LONG).show();
+            });
+        }, "Rich download").start();
+    }
+
+    private void removeRich() {
+        dialog().setTitle("Remove Rich sounds?")
+                .setMessage("It can be downloaded again from this list any time.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Remove", (d, w) -> {
+                    if (Rich.ID.equals(mellotronSound)) setMellotron("");
+                    Rich.remove(this);
+                    setMellotron(mellotronSound);
+                }).show();
     }
 
     private void removeSound(Sounds.Pack p) {
@@ -1945,9 +2052,8 @@ public class MainActivity extends Activity {
     private String[] labels(Button b) {
         if (b == mellotronButton) {
             java.util.List<String> l = new java.util.ArrayList<>();
-            for (String x : Sounds.installed(this)) l.add("Mellotron: " + x);
-            l.add("Mellotron: off");
-            l.add("Mellotron: get sounds");
+            for (String x : Sounds.installed(this)) l.add(Rich.ID.equals(x) ? "Sound: Rich" : "Sound: " + x);
+            l.add("Sound: FM-1");
             return l.toArray(new String[0]);
         }
         if (b == lookButton) {
@@ -1966,7 +2072,7 @@ public class MainActivity extends Activity {
     private float needOf(Button b, android.graphics.Paint paint) {
         float w = 0;
         for (String l : labels(b)) w = Math.max(w, paint.measureText(l));
-        return w + dp(18) * 2 + dp(6) * 2;
+        return w * 1.08f + dp(4) + dp(18) * 2 + dp(6) * 2;
     }
 
     private void fitBar() {
@@ -2021,11 +2127,16 @@ public class MainActivity extends Activity {
             Button b = (Button) c;
             float w = 0;
             for (String l : labels(b)) w = Math.max(w, paint.measureText(l));
+            w = w * 1.08f + dp(4);                              // slack: exactly the text's width cut its last letters ("Mirr…")
             bs.add(b);
             widest.add(w);
             need += w + dp(18) * 2 + dp(6) * 2;
         }
         float sc = need <= avail ? 1f : Math.max(0.3f, avail / need * 0.97f);   // smaller until everything fits: nothing cut off
+        // the title only when it fits whole in what's left (squeezed, it was "F…")
+        float left = avail - need * Math.min(1f, sc), titleW = title.getPaint().measureText(title.getText().toString()) + dp(8);
+        int tv = left >= titleW ? View.VISIBLE : View.GONE;
+        if (title.getVisibility() != tv) title.setVisibility(tv);
         boolean same = Math.abs(sc - barScale) < 0.01f;
         barScale = sc;
         for (int i = 0; i < bs.size(); i++) {
