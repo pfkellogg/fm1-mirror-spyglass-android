@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.util.SparseArray;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -118,10 +119,80 @@ final class Panel {
         private int held; // keys and buttons held (bit id: 0..13 buttons, 14..40 keys)
         private long heldHi;
 
+        // A TV remote (no touch): a knob or a button / key chosen with the arrows (a blue ring), left / right turn a knob,
+        // OK presses (held: held)
+        private int knobSel, rowSel /* 0 buttons, 1 keys */, btnSel, keySel = 7 /* C4 */, okHeld = -1;
+
         PanelView(Context c, Out out) {
             super(c);
             this.out = out;
             dp = c.getResources().getDisplayMetrics().density;
+            setFocusable(true);
+            setOnFocusChangeListener((v, has) -> invalidate());
+        }
+
+        @Override
+        public boolean onKeyDown(int code, KeyEvent e) {
+            if (overlay) {
+                if (!knobsFit() || !showKnobs) return super.onKeyDown(code, e);
+                switch (code) {
+                    case KeyEvent.KEYCODE_DPAD_LEFT: knob(knobSel, -12f); invalidate(); return true;
+                    case KeyEvent.KEYCODE_DPAD_RIGHT: knob(knobSel, 12f); invalidate(); return true;
+                    case KeyEvent.KEYCODE_DPAD_UP: if (knobSel == 0) return false; knobSel--; invalidate(); return true;
+                    case KeyEvent.KEYCODE_DPAD_DOWN: if (knobSel == 7) return false; knobSel++; invalidate(); return true;
+                    default: return super.onKeyDown(code, e);
+                }
+            }
+            if (!showLights) return super.onKeyDown(code, e);
+            switch (code) {
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    if (rowSel == 0) btnSel = Math.max(0, btnSel - 1); else keySel = Math.max(0, keySel - 1);
+                    invalidate();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    if (rowSel == 0) btnSel = Math.min(13, btnSel + 1); else keySel = Math.min(26, keySel + 1);
+                    invalidate();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    if (rowSel == 0) return false;
+                    rowSel = 0;
+                    btnSel = Math.round(keyRect(keySel).centerX() / (getWidth() / 14f) - 0.5f);
+                    btnSel = Math.max(0, Math.min(13, btnSel));
+                    invalidate();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (rowSel == 1) return false;
+                    rowSel = 1;
+                    float x = buttonRect(btnSel).centerX();
+                    int best = 0;
+                    for (int k = 1; k < 27; k++)
+                        if (Math.abs(keyRect(k).centerX() - x) < Math.abs(keyRect(best).centerX() - x)) best = k;
+                    keySel = best;
+                    invalidate();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                    if (e.getRepeatCount() == 0) {
+                        okHeld = rowSel == 0 ? BUTTON_ROW[btnSel] : 14 + keySel;
+                        setHeld(okHeld, true);
+                        invalidate();
+                    }
+                    return true;
+                default:
+                    return super.onKeyDown(code, e);
+            }
+        }
+
+        @Override
+        public boolean onKeyUp(int code, KeyEvent e) {
+            if (okHeld >= 0 && (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+                setHeld(okHeld, false);
+                okHeld = -1;
+                invalidate();
+                return true;
+            }
+            return super.onKeyUp(code, e);
         }
 
         /** The knobs over the screen's sides, see-through, or the strip under it. */
@@ -134,6 +205,10 @@ final class Panel {
         void asStrip() {
             showKnobs = false;
             setBackgroundColor(0xff121212);
+        }
+
+        boolean hasLights() {
+            return lights != null;
         }
 
         void setLights(Lights l) {
@@ -331,11 +406,12 @@ final class Panel {
                         paint.setColor(col);
                         c.drawRoundRect(keyRect(k), 4 * dp, 4 * dp, paint);
                     }
-                if (lights == null && played == 0) {
-                    paint.setColor(0xff707070);
-                    paint.setTextSize(13 * dp);
-                    c.drawText("No lights from this firmware yet: Key Lights need a Big Screen build (aikellogg.com)",
-                            getWidth() / 2f, keysTop() + keysH() * 0.85f, paint);
+                if (isFocused()) {                         // the remote's choice
+                    paint.setStyle(Paint.Style.STROKE);
+                    paint.setStrokeWidth(3 * dp);
+                    paint.setColor(0xff4da3ff);
+                    c.drawRoundRect(rowSel == 0 ? buttonRect(btnSel) : keyRect(keySel), 6 * dp, 6 * dp, paint);
+                    paint.setStyle(Paint.Style.FILL);
                 }
             }
             if (showKnobs && (!overlay || knobsFit())) {
@@ -359,6 +435,13 @@ final class Panel {
                     paint.setColor(0xffc8c8c8);
                     paint.setTextSize(11 * dp);
                     c.drawText(NAMES[i], ce[0], ce[1] + rr + 13 * dp, paint);
+                    if (isFocused() && i == knobSel) {     // the remote's knob
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(4 * dp);
+                        paint.setColor(0xff4da3ff);
+                        c.drawCircle(ce[0], ce[1], rr + 6 * dp, paint);
+                        paint.setStyle(Paint.Style.FILL);
+                    }
                 }
             }
         }

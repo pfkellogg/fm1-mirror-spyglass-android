@@ -48,6 +48,8 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
     static final String WORKBENCH = "https://open.m-vave.com/fm1-workbench";
+    /** aikellogg.com's Make a Big Screen: any FM-1 firmware from The Firmware Hub, with Big Screen, Big Knobs and Key Lights. */
+    static final String MAKE_BIG_SCREEN = "https://aikellogg.com/#/make-big-screen";
     private static final long HELLO_EVERY = 900, QUIET = 4000;
     private static final int TEXT = Color.WHITE, DIM = 0xffb0b0b0, BG = Color.BLACK;
 
@@ -80,7 +82,11 @@ public class MainActivity extends Activity {
     private volatile boolean baseOn;
     /** Big Knobs and Key Lights (Panel): the strip and the knobs under the FM-1's screen, and their buttons. */
     private Panel.PanelView panelView, knobsView;
-    private Button knobsButton, lightsButton;
+    private Button knobsButton, lightsButton, staleButton;
+    /** When this link's screen first came (0: not yet): a screen with no Key Lights 5 s later is the older,
+     *  screen-only Big Screen. staleBox says so, in the strip's place. */
+    private volatile long screenSince;
+    private LinearLayout staleBox;
     private boolean knobsOn, lightsOn;
     /** Which link thread is the live one: leaving and coming back quickly mustn't leave two fighting over the FM-1. */
     private volatile int linkGen;
@@ -115,6 +121,9 @@ public class MainActivity extends Activity {
 
     private ScreenView screen;
     private LinearLayout bar, panel;
+    /** The bar's second row: the buttons after the lights that don't fit on one row at a readable size (a TV). */
+    private LinearLayout bar2;
+    private final java.util.List<Button> movable = new java.util.ArrayList<>();
     private FrameLayout stage;
     private ScrollView panelScroll;
     private Button lookButton, keysButton, updateButton, mirrorButton, smoothButton, showMirror, mellotronButton;
@@ -170,10 +179,10 @@ public class MainActivity extends Activity {
         labelsOf.put(keysButton, new String[] {"MIDI: Keystation 49"}); // (a longer name is cut short)
         bar.addView(keysButton);
         mirrorButton = button("", v -> setMirror(!mirrorOn));
-        labelsOf.put(mirrorButton, new String[] {"Hide mirror", "Show mirror"});
+        labelsOf.put(mirrorButton, new String[] {"Mirror"});
         bar.addView(mirrorButton);
         smoothButton = button("", v -> toggleSmooth());
-        labelsOf.put(smoothButton, new String[] {"Smooth: on", "Smooth: off"});
+        labelsOf.put(smoothButton, new String[] {"Smooth"});
         bar.addView(smoothButton);
         mellotronButton = button("", v -> nextMellotron());
         mellotronButton.setOnLongClickListener(v -> {
@@ -223,14 +232,17 @@ public class MainActivity extends Activity {
             prefs.edit().putBoolean("knobs", knobsOn).apply();
             showPanel();
         });
-        labelsOf.put(knobsButton, new String[] {"Knobs: on", "Knobs: off"});
+        labelsOf.put(knobsButton, new String[] {"Knobs"});
+        staleButton = button("Get Knobs and Lights \u203A", v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(MAKE_BIG_SCREEN))));
+        staleButton.setVisibility(View.GONE);
+        bar.addView(staleButton);
         bar.addView(knobsButton);
         lightsButton = button("", v -> {
             lightsOn = !lightsOn;
             prefs.edit().putBoolean("lights", lightsOn).apply();
             showPanel();
         });
-        labelsOf.put(lightsButton, new String[] {"Lights: on", "Lights: off"});
+        labelsOf.put(lightsButton, new String[] {"Lights"});
         bar.addView(lightsButton);
         bar.addView(button("Spyglass", v -> setGlass(glass == null)));
         lookButton = button(look.label, v -> nextLook());
@@ -238,6 +250,18 @@ public class MainActivity extends Activity {
         Button big = button("Full screen", v -> setFull(true));
         bar.addView(big);
         root.addView(bar);
+        bar2 = new LinearLayout(this);
+        bar2.setOrientation(LinearLayout.HORIZONTAL);
+        bar2.setGravity(Gravity.CENTER_VERTICAL);
+        bar2.setPadding(dp(12), 0, dp(12), dp(8));
+        bar2.setVisibility(View.GONE);
+        root.addView(bar2);
+        boolean after = false;                     // the buttons after the lights may go to the second row
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View c = bar.getChildAt(i);
+            if (c == lights) after = true;
+            else if (after && c instanceof Button) movable.add((Button) c);
+        }
         bar.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> bar.post(this::fitBar));
 
         stage = new FrameLayout(this);
@@ -270,6 +294,18 @@ public class MainActivity extends Activity {
         };
         panelView.asStrip();
         root.addView(panelView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0));
+        // the older Big Screen (screen only): in the strip's place, the way to its new version
+        staleBox = new LinearLayout(this);
+        staleBox.setOrientation(LinearLayout.HORIZONTAL);
+        staleBox.setGravity(Gravity.CENTER_VERTICAL);
+        staleBox.setBackgroundColor(0xff121212);
+        staleBox.setPadding(dp(16), dp(8), dp(16), dp(8));
+        TextView st = text("This firmware has the older Big Screen: the screen only. For Big Knobs and Key Lights, install its new version.", 18, 0xffffd21f);
+        st.setTypeface(Typeface.DEFAULT_BOLD);
+        staleBox.addView(st, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        staleBox.addView(button("Get it at aikellogg.com \u203A", v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(MAKE_BIG_SCREEN)))));
+        staleBox.setVisibility(View.GONE);
+        root.addView(staleBox, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         showPanel();
         // A TV crops the picture's edges (overscan): keep the FM-1's screen, and its bottom row, inside the safe area.
         tv = getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK);
@@ -353,6 +389,7 @@ public class MainActivity extends Activity {
         barFocus = f != null && f.getParent() == bar ? f : null;
         barAsleep = true;
         bar.setVisibility(View.INVISIBLE); // (its room kept: the FM-1's screen doesn't change size when it comes and goes)
+        if (bar2.getVisibility() == View.VISIBLE) bar2.setVisibility(View.INVISIBLE);
     };
 
     /** The remote was used: show the bar (if it slept) and start counting again. */
@@ -362,6 +399,7 @@ public class MainActivity extends Activity {
         if (barAsleep) {
             barAsleep = false;
             bar.setVisibility(View.VISIBLE);
+            if (bar2.getChildCount() > 0) bar2.setVisibility(View.VISIBLE);
             if (barFocus != null) barFocus.requestFocus();
         }
         main.postDelayed(sleepBar, BAR_SECONDS * 1000);
@@ -493,6 +531,7 @@ public class MainActivity extends Activity {
                     asker = new BigScreen2.Asker();
                     baseOn = false;
                     Fm1Base.panel.clear(); // a new link: its lights and remote found again
+                    screenSince = 0;
                     Fm1Base.lights = null;
                     panelView.setLights(null);
                     baseAsked = 0;
@@ -1038,6 +1077,7 @@ public class MainActivity extends Activity {
     private void showV2() {
         v2.show(pixels);
         lastScreen = System.currentTimeMillis();
+        if (screenSince == 0) screenSince = lastScreen;
         if (!changed) {
             changed = true;
             screen.postInvalidateOnAnimation();
@@ -1081,6 +1121,7 @@ public class MainActivity extends Activity {
         synchronized (this) {
             if (Codec.apply(pixels, m)) {
                 lastScreen = System.currentTimeMillis();
+                if (screenSince == 0) screenSince = lastScreen;
                 if (!changed) {
                     changed = true;
                     screen.postInvalidateOnAnimation();
@@ -1128,6 +1169,7 @@ public class MainActivity extends Activity {
             showKeys();
             update();
             showLink();
+            if (stale() != drawnStale) showPanel(); // (the older Big Screen found, or a new link)
             boolean linked = link != null;
             if (linked != drawnLinked) { // the "No FM-1 yet" line comes and goes
                 drawnLinked = linked;
@@ -1144,6 +1186,7 @@ public class MainActivity extends Activity {
         boolean picture = need == null;
         screen.setVisibility(picture ? View.VISIBLE : View.GONE);
         panelScroll.setVisibility(picture ? View.GONE : View.VISIBLE);
+        if (knobsView != null) knobsView.setFocusable(picture); // (the remote never lands on knobs hidden under help)
         if (glass != null) glass.setVisibility(picture ? View.VISIBLE : View.GONE);
         if (picture) {
             shown = "";
@@ -1163,7 +1206,7 @@ public class MainActivity extends Activity {
         String detail = parts.length > 1 ? parts[1] : "";
         switch (parts[0]) {
             case "plug":
-                heading("No FM-1 yet");
+                headingWithBigScreen("No FM-1 yet");
                 if (mm == null) {
                     // No MIDI service (a Google TV box): straight over USB only, through a powered OTG hub.
                     body("Plug the FM-1 into this box's USB port through a powered USB OTG hub (the hub powers the box too), and turn it on.");
@@ -1191,6 +1234,7 @@ public class MainActivity extends Activity {
                 break;
             case "original":
                 heading("This FM-1 has M-VAVE's original firmware");
+                makeBig();
                 body("To show its screen here it needs the FM-1 Big Screen firmware: M-VAVE's free Official Open firmware plus one small addition that sends the screen to this app. Two steps, and you can go back to the original whenever you like.");
                 step1();
                 break;
@@ -1200,6 +1244,7 @@ public class MainActivity extends Activity {
                 break;
             case "open":
                 heading("This FM-1 runs M-VAVE's Open firmware");
+                makeBig();
                 body("Install the Big Screen version of it: the same firmware, plus sending its screen to this app. It takes about 2 minutes.");
                 if (confirming) {
                     body("Ready? Keep the FM-1 plugged in and on until it's done, keep this app open, and close other apps that use the FM-1. If you made your own sounds or projects, saving them first on M-VAVE's page is always a good idea.");
@@ -1224,6 +1269,7 @@ public class MainActivity extends Activity {
                 break;
             case "other":
                 heading("This FM-1 runs another firmware");
+                makeBig();
                 body("It says it is \"" + detail + "\". It's fine to keep using it, and nothing needs changing. This firmware doesn't send its screen, so it can't show here.");
                 body("Only if you want to see the screen here: Big Screen replaces this firmware, and it installs over M-VAVE's Official Open firmware, so that comes first.");
                 step1();
@@ -1245,6 +1291,7 @@ public class MainActivity extends Activity {
                     break;
                 }
                 heading("No screen from the FM-1 yet");
+                makeBig();
                 body("Connected to \"" + detail + "\", but it isn't sending its screen and didn't say which firmware it runs. If you're using a community firmware, it's fine to keep it, and nothing needs changing: it just can't show here.");
                 body("Only if you want to see the screen here, or if this FM-1 has M-VAVE's original firmware:");
                 step1();
@@ -1697,13 +1744,28 @@ public class MainActivity extends Activity {
                 }).show();
     }
 
+    private boolean drawnStale;
+
+    /** The FM-1's firmware has the older Big Screen: its screen came 5 s ago or more, and no Key Lights (Charles
+     *  Vestal's mirror sends its lights its own way: never stale). */
+    private boolean stale() {
+        long t = screenSince;
+        return link != null && !baseOn && t != 0 && System.currentTimeMillis() - t > 5000 && !panelView.hasLights();
+    }
+
     /** The strip and the knobs, as their buttons say. */
     private void showPanel() {
-        knobsButton.setText(knobsOn ? "Knobs: on" : "Knobs: off");
-        lightsButton.setText(lightsOn ? "Lights: on" : "Lights: off");
+        knobsButton.setText("Knobs");
+        lightsButton.setText("Lights");
+        knobsButton.setAlpha(knobsOn ? 1f : 0.45f);        // on: bright yellow; off: dimmed
+        lightsButton.setAlpha(lightsOn ? 1f : 0.45f);
+        boolean stale = stale();
         panelView.showLights = lightsOn;
-        panelView.setVisibility(lightsOn ? View.VISIBLE : View.GONE);
-        knobsView.setVisibility(knobsOn ? View.VISIBLE : View.GONE);
+        panelView.setVisibility(lightsOn && !stale ? View.VISIBLE : View.GONE);
+        knobsView.setVisibility(knobsOn && !stale ? View.VISIBLE : View.GONE);
+        staleBox.setVisibility(stale && (knobsOn || lightsOn) ? View.VISIBLE : View.GONE);
+        staleButton.setVisibility(stale && !knobsOn && !lightsOn ? View.VISIBLE : View.GONE);
+        drawnStale = stale;
         knobsView.invalidate();
         ViewGroup.LayoutParams lp = panelView.getLayoutParams();
         lp.height = panelView.wanted();
@@ -1739,8 +1801,10 @@ public class MainActivity extends Activity {
 
     /** The buttons say what they do, and the hidden mirror keeps a way back. */
     private void showMirrors() {
-        mirrorButton.setText(mirrorOn ? "Hide mirror" : "Show mirror");
-        smoothButton.setText(smoothOn ? "Smooth: on" : "Smooth: off");
+        mirrorButton.setText("Mirror");                    // on: bright yellow; off: dimmed (short: the bar fits)
+        smoothButton.setText("Smooth");
+        mirrorButton.setAlpha(mirrorOn ? 1f : 0.45f);
+        smoothButton.setAlpha(smoothOn ? 1f : 0.45f);
         showMirror.setVisibility(mirrorOn ? View.GONE : View.VISIBLE);
     }
 
@@ -1760,6 +1824,7 @@ public class MainActivity extends Activity {
         full = on;
         barAsleep = false;
         bar.setVisibility(on ? View.GONE : View.VISIBLE);
+        bar2.setVisibility(on || bar2.getChildCount() == 0 ? View.GONE : View.VISIBLE);
         if (on) main.removeCallbacks(sleepBar);
         else wakeBar();
         if (android.os.Build.VERSION.SDK_INT < 30) {
@@ -1802,6 +1867,38 @@ public class MainActivity extends Activity {
         panel.addView(t);
     }
 
+    /** A heading with, beside it, the big way to a Big Screen firmware (aikellogg.com, Make a Big Screen). */
+    private void headingWithBigScreen(String s) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = text(s, 30, TEXT);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setPadding(0, dp(12), dp(24), dp(12));
+        row.addView(t);
+        Button b = button("Get a Big Screen firmware at aikellogg.com \u203A", v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(MAKE_BIG_SCREEN))));
+        b.setTextSize(22);
+        b.setMinHeight(dp(60));
+        b.setPadding(dp(20), dp(8), dp(20), dp(8));
+        row.addView(b);
+        panel.addView(row);
+    }
+
+    /** Any firmware without Big Screen: the big way to one (aikellogg.com, Make a Big Screen). */
+    private void makeBig() {
+        TextView t = text("You need to install a Big Screen firmware of your choice.", 28, 0xffffd21f);
+        t.setTypeface(Typeface.DEFAULT_BOLD);
+        t.setPadding(0, dp(8), 0, dp(8));
+        panel.addView(t);
+        Button b = button("Choose one at aikellogg.com  \u203A", v -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(MAKE_BIG_SCREEN))));
+        b.setTextSize(26);
+        b.setMinHeight(dp(64));
+        b.setPadding(dp(24), dp(10), dp(24), dp(10));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.bottomMargin = dp(14);
+        panel.addView(b, lp);
+    }
+
     private void body(String s) {
         TextView t = text(s, 22, TEXT);
         t.setPadding(0, dp(6), 0, dp(6));
@@ -1823,17 +1920,8 @@ public class MainActivity extends Activity {
                         b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
                         b.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
                         b.setTextColor(Color.BLACK);
-                        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
-                        on.setColor(Color.WHITE);
-                        on.setStroke(dp(4), 0xff2f7cf6);
-                        android.graphics.drawable.GradientDrawable off = new android.graphics.drawable.GradientDrawable();
-                        off.setColor(0xffffd60a);
-                        off.setCornerRadius(dp(6));
-                        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
-                        bg.addState(new int[] {android.R.attr.state_focused}, on);
-                        bg.addState(new int[] {android.R.attr.state_pressed}, on);
-                        bg.addState(new int[] {}, off);
-                        b.setBackground(bg);
+                        b.setTypeface(Typeface.DEFAULT_BOLD);
+                        b.setBackground(buttonLook());
                         b.setPadding(dp(16), dp(8), dp(16), dp(8));
                         if (b.getLayoutParams() instanceof android.view.ViewGroup.MarginLayoutParams) {
                             android.view.ViewGroup.MarginLayoutParams lp = (android.view.ViewGroup.MarginLayoutParams) b.getLayoutParams();
@@ -1872,9 +1960,56 @@ public class MainActivity extends Activity {
         return l != null ? l : new String[] {b.getText().toString()};
     }
 
+    /** One row at a readable size (scale 0.75 or more), else the last buttons on a second row. */
+    private static final float READABLE = 0.75f;
+
+    private float needOf(Button b, android.graphics.Paint paint) {
+        float w = 0;
+        for (String l : labels(b)) w = Math.max(w, paint.measureText(l));
+        return w + dp(18) * 2 + dp(6) * 2;
+    }
+
     private void fitBar() {
         int avail = bar.getWidth() - bar.getPaddingLeft() - bar.getPaddingRight() - (lights != null && lights.getVisibility() == View.VISIBLE ? lights.getWidth() : 0);
         if (avail <= 0) return;
+        {
+            android.graphics.Paint paint = new android.graphics.Paint(mellotronButton.getPaint());
+            paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics()));
+            float fixed = 0;                                    // what stays on the first row
+            for (int i = 0; i < bar.getChildCount(); i++) {
+                View c = bar.getChildAt(i);
+                if (c instanceof Button && c.getVisibility() == View.VISIBLE && !movable.contains(c)) fixed += needOf((Button) c, paint);
+            }
+            int keep = 0;                                       // how many movable buttons still fit beside them
+            float need = fixed;
+            for (Button b : movable) {
+                if (b.getVisibility() != View.VISIBLE) { keep++; continue; }
+                if (false && (need + needOf(b, paint)) * READABLE > avail) break;   // (one row always: a second row took the screen's room)
+                need += needOf(b, paint);
+                keep++;
+            }
+            boolean changed = false;
+            for (int i = 0; i < movable.size(); i++) {
+                Button b = movable.get(i);
+                LinearLayout want = i < keep ? bar : bar2;
+                if (b.getParent() != want) {
+                    ((ViewGroup) b.getParent()).removeView(b);
+                    want.addView(b);                            // (in order: the first row's end, the second row's end)
+                    changed = true;
+                }
+            }
+            if (changed) {
+                bar2.setVisibility(bar2.getChildCount() > 0 && bar.getVisibility() == View.VISIBLE && !full ? View.VISIBLE : View.GONE);
+                for (int i = 0; i < bar2.getChildCount(); i++) {   // the second row's buttons at full size
+                    Button b = (Button) bar2.getChildAt(i);
+                    LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) b.getLayoutParams();
+                    lp.width = Math.round(needOf(b, paint) - dp(6) * 2);
+                    lp.setMargins(dp(6), dp(4), dp(6), dp(4));
+                    b.setLayoutParams(lp);
+                    b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
+                }
+            }
+        }
         android.graphics.Paint paint = new android.graphics.Paint(mellotronButton.getPaint());
         paint.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics()));
         java.util.List<Button> bs = new java.util.ArrayList<>();
@@ -1890,7 +2025,7 @@ public class MainActivity extends Activity {
             widest.add(w);
             need += w + dp(18) * 2 + dp(6) * 2;
         }
-        float sc = need <= avail ? 1f : Math.max(0.55f, avail / need * 0.97f);
+        float sc = need <= avail ? 1f : Math.max(0.3f, avail / need * 0.97f);   // smaller until everything fits: nothing cut off
         boolean same = Math.abs(sc - barScale) < 0.01f;
         barScale = sc;
         for (int i = 0; i < bs.size(); i++) {
@@ -1909,21 +2044,37 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Every button's look: rounded yellow, black bold text; pressed a deeper yellow; with the remote's focus on it (a
+     *  TV) white with a thick blue edge, so you can see where you are. */
+    private android.graphics.drawable.StateListDrawable buttonLook() {
+        float r = dp(14);
+        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
+        on.setColor(Color.WHITE);
+        on.setStroke(dp(4), 0xff2f7cf6);
+        on.setCornerRadius(r);
+        android.graphics.drawable.GradientDrawable down = new android.graphics.drawable.GradientDrawable();
+        down.setColor(0xffe0b800);
+        down.setCornerRadius(r);
+        android.graphics.drawable.GradientDrawable off = new android.graphics.drawable.GradientDrawable();
+        off.setColor(0xffffd60a);
+        off.setStroke(dp(1), 0xffb89600);
+        off.setCornerRadius(r);
+        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
+        bg.addState(new int[] {android.R.attr.state_focused}, on);
+        bg.addState(new int[] {android.R.attr.state_pressed}, down);
+        bg.addState(new int[] {}, off);
+        return bg;
+    }
+
     private Button button(String s, View.OnClickListener l) {
         Button b = new Button(this);
         b.setText(s);
         b.setAllCaps(false);
         b.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
         b.setTextColor(Color.BLACK);
-        // Yellow; with the remote's focus on it (a TV): white with a thick blue edge, so you can see where you are.
-        android.graphics.drawable.GradientDrawable on = new android.graphics.drawable.GradientDrawable();
-        on.setColor(Color.WHITE);
-        on.setStroke(dp(4), 0xff2f7cf6);
-        android.graphics.drawable.StateListDrawable bg = new android.graphics.drawable.StateListDrawable();
-        bg.addState(new int[] {android.R.attr.state_focused}, on);
-        bg.addState(new int[] {android.R.attr.state_pressed}, on);
-        bg.addState(new int[] {}, new android.graphics.drawable.ColorDrawable(0xffffd60a));
-        b.setBackground(bg);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        b.setBackground(buttonLook());
+        b.setStateListAnimator(null);              // (no grey shadow under it)
         b.setPadding(dp(18), dp(10), dp(18), dp(10));
         b.setOnClickListener(l);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -2057,7 +2208,10 @@ public class MainActivity extends Activity {
             int side = Math.min(getWidth(), getHeight());
             // A whole number of screen pixels per FM-1 pixel (3x, 4x, ...): with 3.2x some came out 3 wide and some 4,
             // and dotted pictures (Erik37's piano) looked streaky. Smooth on keeps the same size, so nothing jumps.
-            if (side >= Codec.SIZE) side = side / Codec.SIZE * Codec.SIZE;
+            // Big first: Smooth on (the default) fills all the room; Smooth off keeps whole FM-1 pixels (crisp dots) only
+            // when that costs under 15% of the size: never the cliff from 2x down to 1x when the room is a bit short.
+            int whole = side / Codec.SIZE * Codec.SIZE;
+            if (!(smoothOn && smoothReady) && whole >= Codec.SIZE && whole >= side * 0.85f) side = whole;
             int x = (getWidth() - side) / 2, y = (getHeight() - side) / 2;
             dst.set(x, y, x + side, y + side);
             boolean sm = smoothOn && smoothReady;
