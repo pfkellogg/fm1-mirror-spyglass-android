@@ -525,6 +525,7 @@ public class MainActivity extends Activity {
                         identity = null;
                         firmware = null;
                     }
+                    firmwareChecked = false;
                     setSound(null);
                     lost = false;
                     opened = System.currentTimeMillis();
@@ -1173,6 +1174,7 @@ public class MainActivity extends Activity {
             update();
             showLink();
             if (stale() != drawnStale) showPanel(); // (the older Big Screen found, or a new link)
+            checkNewFirmware();
             boolean linked = link != null;
             if (linked != drawnLinked) { // the "No FM-1 yet" line comes and goes
                 drawnLinked = linked;
@@ -1852,6 +1854,32 @@ public class MainActivity extends Activity {
     }
 
     private boolean drawnStale;
+
+    /** After a flash: a different firmware than last time turns the app's sound off (it would play over the new
+     *  firmware's own sound, and may not suit it). Decided once per link, 5 s after its screen first came, once it has
+     *  said what it is; remembered ("lastFirmware"). The same firmware again changes nothing. */
+    private volatile boolean firmwareChecked;
+
+    private void checkNewFirmware() {
+        long t = screenSince;
+        if (firmwareChecked || link == null || t == 0 || System.currentTimeMillis() - t < 5000) return;
+        String id, fw;
+        synchronized (this) {
+            id = identity;
+            fw = firmware;
+        }
+        if (id == null && fw == null) return;
+        firmwareChecked = true;
+        String now = (id == null ? "" : id) + "|" + (fw == null ? "" : fw);
+        String last = prefs.getString("lastFirmware", "");
+        if (now.equals(last)) return;
+        prefs.edit().putString("lastFirmware", now).apply();
+        if (!last.isEmpty() && !mellotronSound.isEmpty()) {
+            setMellotron("");
+            Toast.makeText(this, "New firmware: the app's sound is off, so you hear the FM-1 itself. Turn it on again in the Sound menu.",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
 
     /** The FM-1's firmware has the older Big Screen: its screen came 5 s ago or more, and no Key Lights (Charles
      *  Vestal's mirror sends its lights its own way: never stale). */
