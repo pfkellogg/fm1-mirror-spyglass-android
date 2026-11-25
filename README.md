@@ -310,6 +310,15 @@ On a newer FM-1:
 
 Not yet tested by us on a newer FM-1 (2026-11-08).
 
+## For firmware authors
+
+Want your FM-1 firmware to show big here, smoothly? **[Fix your firmware](https://aikellogg.com/#/fix-your-firmware)**
+on aikellogg.com has the best-practice guide for FM-1 Big Screen (send only what changed, never drop: wait for the
+link, keep your picture, light the keys and read the knobs through the platform) and a free form: send us your
+firmware's repository and we send you the fix. Video: [Best Practice Guide for FM-1 Big Screen](https://youtu.be/En7lYeFrhkk).
+Every FM-1 firmware with a Big Screen build: [Big Screen FWs](https://aikellogg.com/#/bigscreen-fws), updated every night
+from The Firmware Hub.
+
 ## For the curious
 
 Plain Java, Android's own MIDI, no other libraries.
