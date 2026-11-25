@@ -1173,7 +1173,7 @@ public class MainActivity extends Activity {
             showKeys();
             update();
             showLink();
-            if (stale() != drawnStale) showPanel(); // (the older Big Screen found, or a new link)
+            if (stale() != drawnStale || authorScreen() != drawnAuthor) showPanel(); // (the older Big Screen found, or a new link)
             checkNewFirmware();
             boolean linked = link != null;
             if (linked != drawnLinked) { // the "No FM-1 yet" line comes and goes
@@ -1883,9 +1883,25 @@ public class MainActivity extends Activity {
 
     /** The FM-1's firmware has the older Big Screen: its screen came 5 s ago or more, and no Key Lights (Charles
      *  Vestal's mirror sends its lights its own way: never stale). */
+    /** A screen its firmware's author added himself, with no Knobs or Lights (SHRUB): it doesn't say what it is and sends
+     *  no lights. Its Knobs and Lights would do nothing, so they don't show. */
+    private boolean drawnAuthor;
+    private boolean authorScreen() {
+        long t = screenSince;
+        boolean known;
+        synchronized (this) {
+            known = identity != null || firmware != null;
+        }
+        return !known && link != null && !baseOn && t != 0 && System.currentTimeMillis() - t > 5000 && !panelView.hasLights();
+    }
+
     private boolean stale() {
         long t = screenSince;
-        return link != null && !baseOn && t != 0 && System.currentTimeMillis() - t > 5000 && !panelView.hasLights();
+        boolean known; // only a firmware that said what it is (our older builds do; SHRUB, whose author added the screen, doesn't)
+        synchronized (this) {
+            known = identity != null || firmware != null;
+        }
+        return known && link != null && !baseOn && t != 0 && System.currentTimeMillis() - t > 5000 && !panelView.hasLights();
     }
 
     /** The strip and the knobs, as their buttons say. */
@@ -1894,10 +1910,11 @@ public class MainActivity extends Activity {
         lightsButton.setText("Lights");
         knobsButton.setAlpha(knobsOn ? 1f : 0.45f);        // on: bright yellow; off: dimmed
         lightsButton.setAlpha(lightsOn ? 1f : 0.45f);
-        boolean stale = stale();
+        boolean stale = stale(), author = authorScreen();
         panelView.showLights = lightsOn;
-        panelView.setVisibility(lightsOn && !stale ? View.VISIBLE : View.GONE);
-        knobsView.setVisibility(knobsOn && !stale ? View.VISIBLE : View.GONE);
+        panelView.setVisibility(lightsOn && !stale && !author ? View.VISIBLE : View.GONE);
+        knobsView.setVisibility(knobsOn && !stale && !author ? View.VISIBLE : View.GONE);
+        drawnAuthor = author;
         staleBox.setVisibility(stale && (knobsOn || lightsOn) ? View.VISIBLE : View.GONE);
         staleButton.setVisibility(stale && !knobsOn && !lightsOn ? View.VISIBLE : View.GONE);
         drawnStale = stale;
