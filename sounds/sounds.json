@@ -48,13 +48,85 @@
    "bytes": 10543837,
    "sha256": "d68fc46ed4143df140af5d26440afea26b76477647dc5f9a33c94d11f84f22ce",
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-4/mellotron-trumpet.zip"
+  },
+  {
+   "id": "violin",
+   "name": "Violin",
+   "version": 1,
+   "bytes": 13672041,
+   "sha256": "d233d9fc85bad0e8a6ea1c4da63880e36ade16ac03a6a8be105599c1eab8af62",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-violin.zip"
+  },
+  {
+   "id": "cello",
+   "name": "Cello",
+   "version": 1,
+   "bytes": 12399335,
+   "sha256": "a7a4d7d86b66a91fd64fe8279f75291f4814549220a030288fb9671d2f2ab4d8",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-cello.zip"
+  },
+  {
+   "id": "frenchhorn",
+   "name": "French Horn",
+   "version": 1,
+   "bytes": 7119087,
+   "sha256": "ead3cfb977863086c3b48bd1352c982ddd17eb284878ff7ba258ca66406441b2",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-frenchhorn.zip"
+  },
+  {
+   "id": "harmonica",
+   "name": "Harmonica",
+   "version": 1,
+   "bytes": 14827240,
+   "sha256": "bb2ec60093de00494bf9a864ac135482b11812af1ef51bd50f87f405568161eb",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-harmonica.zip"
+  },
+  {
+   "id": "altosax",
+   "name": "Alto Sax",
+   "version": 1,
+   "bytes": 14053349,
+   "sha256": "31f4a7c4c7c7f0acc99c73b33cc53d6312bdf6de945c8734c82fd7a37a79fb0c",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-altosax.zip"
+  },
+  {
+   "id": "clarinet",
+   "name": "Clarinet",
+   "version": 1,
+   "bytes": 12246603,
+   "sha256": "f9274102ca1c558b42268a380d793d25405bc757f7cfb2bdd65ef7279a75331b",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-clarinet.zip"
+  },
+  {
+   "id": "oboe",
+   "name": "Oboe",
+   "version": 1,
+   "bytes": 11922403,
+   "sha256": "05584532163e59ad41cb15c34b3d56b20d4d6e72671938a2c6cc9db992e10d69",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-oboe.zip"
+  },
+  {
+   "id": "accordion",
+   "name": "Accordion",
+   "version": 1,
+   "bytes": 12730175,
+   "sha256": "80db67bf19e7c02a3c9d0c48cac18cdccacd774288f75060908a463c6f289c10",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-accordion.zip"
+  },
+  {
+   "id": "vibraphone",
+   "name": "Vibraphone",
+   "version": 1,
+   "bytes": 3163750,
+   "sha256": "825e8e9cc723de9d821f9e64d8bea0e50fe39b90373c1cd844ff45e9bc3e28d8",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-vibraphone.zip"
   }
  ],
  "all": {
   "name": "Everything",
-  "bytes": 90365436,
-  "sha256": "632f8b968a713ffc6519b6c1f81fa22b6d6925c068cfd0afc104584394e3d200",
-  "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-4/fm1-big-screen-sounds.zip"
+  "bytes": 192505497,
+  "sha256": "e8ff8abd53f6db2311cd90025401a43d6a96db2125098f834fa99d1735d2dc9d",
+  "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/fm1-big-screen-sounds.zip"
  },
  "rich": {
   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-4/GeneralUser-GS.sf2",
