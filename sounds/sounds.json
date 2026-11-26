@@ -1,5 +1,5 @@
 {
- "about": "FM-1 Big Screen's sounds (Android, Mac, Windows, Linux): 16 Mellotron-style sounds, 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music; 'all' is everything in one download (and Rich = GeneralUser GS); 'rich' our copy of GeneralUser GS. Add a sound: zip its strips, put the zip on a release, add it here.",
+ "about": "FM-1 Big Screen's sounds (Android, Mac, Windows, Linux): 16 Mellotron-style sounds and a Grand Piano (from the Salamander Grand Piano by Alexander Holm, CC-BY 3.0), 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music; 'all' is everything in one download (and Rich = GeneralUser GS); 'rich' our copy of GeneralUser GS. Add a sound: zip its strips, put the zip on a release, add it here.",
  "sounds": [
   {
    "id": "flute",
@@ -128,12 +128,21 @@
    "bytes": 3163750,
    "sha256": "825e8e9cc723de9d821f9e64d8bea0e50fe39b90373c1cd844ff45e9bc3e28d8",
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-vibraphone.zip"
+  },
+  {
+   "id": "piano",
+   "name": "Grand Piano",
+   "version": 1,
+   "bytes": 3988037,
+   "sha256": "7b9cb53c8c1b09169519651fd1bbc10fe38b30cc07cb02664a79221d7d685996",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-piano.zip",
+   "credit": "Salamander Grand Piano (Yamaha C5) by Alexander Holm, CC-BY 3.0"
   }
  ],
  "all": {
   "name": "Everything",
-  "bytes": 197485541,
-  "sha256": "f272a33ecc1525ae1c3179cd541cd3d65d10351e0a9c941d03c8ddaf1a00bd74",
+  "bytes": 201474151,
+  "sha256": "24b92bf0edf9cfb7ffe186402ab412f2d30ddc52fa6821193fd5dd08da905fb2",
   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/fm1-big-screen-sounds.zip"
  },
  "rich": {

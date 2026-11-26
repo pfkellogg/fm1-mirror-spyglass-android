@@ -89,7 +89,27 @@ def note(name, midi):
     p1, p2, p3 = me.uniform(0, 6.28, 3)
     wow = 0.0012 * np.sin(2 * np.pi * 0.55 * t + p1) + 0.0005 * np.sin(2 * np.pi * 1.3 * t + p2) \
         + 0.0005 * np.sin(2 * np.pi * 7.0 * t + p3)
-    if R.get("sitar"):
+    if R.get("piano"):   # (not used: the Grand Piano comes from real recordings, tools/make_grand_piano.py)
+        # struck strings: 2-3 strings a note a hair apart (they beat), the partials stretched sharp by the strings'
+        # stiffness (inharmonicity, more up high), each partial dying faster the higher it is, a quick first drop
+        # then a long ring (two-stage decay), a felt hammer's thump, the soundboard's warmth
+        Bc = 0.00012 * 2 ** ((midi - 43) / 14)                    # inharmonicity, grows up the keyboard
+        strings = [0.0] if midi < 46 else ([0.0, 1.4] if midi < 53 else [-1.1, 0.0, 1.3])
+        x = np.zeros(n)
+        for k in range(1, 36):
+            fk = k * f0 * np.sqrt(1 + Bc * k * k)
+            if fk > 11000:
+                break
+            a = (1 / k ** (1.15 + 0.5 * hi)) * (1.0 if k > 1 else 0.85) * np.exp(-((k - 1) * f0 / 3500) ** 1.2)
+            t1 = (0.35 + 0.6 * (1 - hi)) / (1 + 0.15 * k)           # the quick drop
+            t2 = (5.5 - 3.5 * hi) / (1 + 0.05 * k)                  # the long ring
+            dec = 0.55 * np.exp(-t / t1) + 0.45 * np.exp(-t / t2)
+            for c in strings:
+                x += a * dec * np.sin(2 * np.pi * fk * 2 ** (c / 1200) * t * (1 + wow) + me.uniform(0, 6.28)) / len(strings)
+        hammer = bandpass(me.standard_normal(n), 300, 2500 + 3000 * hi) * np.exp(-t / 0.010) * (0.25 + 0.15 * hi)
+        x = x / (np.abs(x).max() + 1e-9) + hammer
+        x = x + 0.25 * bandpass(x, 90, 300) + 0.12 * bandpass(x, 2000, 4500)   # the soundboard
+    elif R.get("sitar"):
         # a plucked string over the sitar's flat bridge (jawari): the string grazes the bridge, so a bright band of
         # harmonics buzzes and sweeps down as the note rings ("yowng"); the pitch sags a touch as it decays; the
         # sympathetic strings (taraf) hum along a moment later; a sharp plectrum (mizrab) click to start
