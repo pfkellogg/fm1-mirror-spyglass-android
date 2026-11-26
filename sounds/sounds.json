@@ -1,5 +1,5 @@
 {
- "about": "The Mellotron's sounds for FM-1 Big Screen (Android, Mac, Windows, Linux): 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music. Add a sound: zip its strips, put the zip on a release, add it here.",
+ "about": "FM-1 Big Screen's sounds (Android, Mac, Windows, Linux): 16 Mellotron-style sounds, 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music; 'all' is everything in one download (and Rich = GeneralUser GS); 'rich' our copy of GeneralUser GS. Add a sound: zip its strips, put the zip on a release, add it here.",
  "sounds": [
   {
    "id": "flute",
@@ -58,12 +58,20 @@
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-violin.zip"
   },
   {
-   "id": "cello",
-   "name": "Cello",
+   "id": "brass",
+   "name": "Brass",
    "version": 1,
-   "bytes": 12399335,
-   "sha256": "a7a4d7d86b66a91fd64fe8279f75291f4814549220a030288fb9671d2f2ab4d8",
-   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-cello.zip"
+   "bytes": 9586829,
+   "sha256": "63aa221dca93380b7c934991ae076c9fb849742c1827240e06fb9fdd5a87bf13",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-brass.zip"
+  },
+  {
+   "id": "sitar",
+   "name": "Sitar",
+   "version": 1,
+   "bytes": 7792060,
+   "sha256": "562e289f10df9144f3357de1fb5af51e214a564ecc07919d3cfb18039d4c4de7",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-sitar.zip"
   },
   {
    "id": "frenchhorn",
@@ -124,8 +132,8 @@
  ],
  "all": {
   "name": "Everything",
-  "bytes": 192505497,
-  "sha256": "e8ff8abd53f6db2311cd90025401a43d6a96db2125098f834fa99d1735d2dc9d",
+  "bytes": 197485541,
+  "sha256": "f272a33ecc1525ae1c3179cd541cd3d65d10351e0a9c941d03c8ddaf1a00bd74",
   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/fm1-big-screen-sounds.zip"
  },
  "rich": {

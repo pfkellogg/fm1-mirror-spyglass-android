@@ -46,6 +46,8 @@ def oboe_amps(k, hi, b):
     return (1 / k ** 0.55) * (0.45 if k == 1 else 1.0) * np.exp(-(k - 5) ** 2 / 40)   # a double reed: nasal, the middle strong
 def accordion_amps(k, hi, b):
     return (1 / k ** 0.8) * (0.9 if k % 2 == 0 else 1.0)
+def brass_amps(k, hi, b):
+    return 10 ** (-(k - 1) * (6.0 + 2.0 * (1 - hi) - 3.5 * b) / 20) * (1.3 if 2 <= k <= 5 else 1.0)   # a section: bright when loud
 def vibes_amps(k, hi, b):
     return 0.0                                                                     # (the vibraphone has bar partials)
 
@@ -67,10 +69,15 @@ RECIPES = {
                       body=[(1000, 1500, 0.4), (2700, 3400, 0.3)], tremble=0.02, level=-1.0, bright_follow=0.5),
     "accordion": dict(amps=accordion_amps, attack=0.05, vib=(0, 0, 9), noise=(0.012, 1500, 5000, 0.05), tone_top=9000,
                       body=[(700, 1300, 0.25)], tremble=0.01, level=0.0, bright_follow=0.4, reeds=(0.0, 13.0, -2.5)),
+    "brass":     dict(amps=brass_amps, attack=0.05, vib=(5.0, 4, 1.2), noise=(0.02, 800, 4000, 0.12), tone_top=10000,
+                      body=[(500, 900, 0.25), (1400, 2800, 0.35)], tremble=0.03, level=0.0, bright_follow=1.0, lip=-30,
+                      reeds=(0.0, -9.0, 7.5), octave_below=0.45, spread=0.025),
+    "sitar":     dict(amps=vibes_amps, attack=0.002, vib=(0, 0, 9), noise=(0.0, 1000, 2000, 0.0), tone_top=12000,
+                      body=[], tremble=0.0, level=0.0, bright_follow=0.0, sitar=True),
     "vibraphone": dict(amps=vibes_amps, attack=0.003, vib=(0, 0, 9), noise=(0.0, 1000, 2000, 0.0), tone_top=9000,
                       body=[], tremble=0.0, level=0.0, bright_follow=0.0, vibes=True),
 }
-NAMES = {"frenchhorn": "French Horn", "altosax": "Alto Sax"}
+NAMES = {"frenchhorn": "French Horn", "altosax": "Alto Sax", "brass": "Brass", "sitar": "Sitar"}
 
 def note(name, midi):
     R = RECIPES[name]
@@ -82,7 +89,28 @@ def note(name, midi):
     p1, p2, p3 = me.uniform(0, 6.28, 3)
     wow = 0.0012 * np.sin(2 * np.pi * 0.55 * t + p1) + 0.0005 * np.sin(2 * np.pi * 1.3 * t + p2) \
         + 0.0005 * np.sin(2 * np.pi * 7.0 * t + p3)
-    if R.get("vibes"):
+    if R.get("sitar"):
+        # a plucked string over the sitar's flat bridge (jawari): the string grazes the bridge, so a bright band of
+        # harmonics buzzes and sweeps down as the note rings ("yowng"); the pitch sags a touch as it decays; the
+        # sympathetic strings (taraf) hum along a moment later; a sharp plectrum (mizrab) click to start
+        ring = 3.2 - 1.2 * hi
+        sag = 1 - 0.0025 * (1 - np.exp(-t / 0.8))
+        ph = 2 * np.pi * np.cumsum(f0 * sag * (1 + wow)) / RATE
+        peak = 2.5 + 16 * np.exp(-t / (0.35 + 0.25 * (1 - hi)))       # where the buzz is, in harmonics
+        x = np.zeros(n)
+        for k in range(1, 48):
+            if k * f0 > 11000:
+                break
+            base = 1 / k ** 0.9
+            buzz = 1.8 * np.exp(-((k - peak) / (2.2 + 0.08 * k)) ** 2)
+            dec = np.exp(-t / (ring / (1 + 0.06 * k)))
+            x += base * (0.35 + buzz) * dec * np.sin(k * ph + me.uniform(0, 6.28))
+        taraf = sum(g * np.sin(2 * np.pi * f0 * r * t + me.uniform(0, 6.28)) for r, g in ((1, 0.10), (2, 0.06), (1.5, 0.05), (3, 0.03)))
+        taraf = taraf * np.clip((t - 0.05) / 0.4, 0, 1) * np.exp(-t / (ring * 1.6))
+        click = bandpass(me.standard_normal(n), 2000, 9000) * np.exp(-t / 0.004) * 0.6
+        x = x / (np.abs(x).max() + 1e-9) + taraf + click
+        x = x + 0.25 * bandpass(x, 250, 600) + 0.2 * bandpass(x, 2200, 4000)   # the gourd and the bridge
+    elif R.get("vibes"):
         # bars: a strong fundamental and the bar's own partials (4x and ~10x), the higher ones dying fast; the
         # motor's tremolo pulses the loudness; a soft mallet thump; long ring
         ring = 4.5 - 2.0 * hi
@@ -111,14 +139,17 @@ def note(name, midi):
         bright = np.clip(amp, 0, 1) ** 1.3 * bright_follow
         reeds = R.get("reeds", (0.0,))
         x = np.zeros(n)
-        for ri, rc in enumerate(reeds):              # the accordion's reeds, a few cents apart, beating
+        players = [(rc, 1.0) for rc in reeds] + ([(-1200.0 + me.normal(0, 4), R["octave_below"])] if R.get("octave_below") else [])
+        for ri, (rc, pg) in enumerate(players):      # the accordion's reeds / a brass section's players, a few cents apart
+            late = R.get("spread", 0.0) * ri * (0.5 + me.random())
+            pl_env = np.clip((t - late) / max(att, 1e-3), 0, 1) ** 1.6 if late else 1.0
             phase = 2 * np.pi * np.cumsum(f0 * 2 ** ((cents + rc) / 1200) * (1 + wow)) / RATE
             for k in range(1, 40):
                 if k * f0 > R["tone_top"]:
                     break
                 a = float(np.mean(R["amps"](k, hi, 0.5))) if bright_follow == 0 else None
                 ak = R["amps"](k, hi, bright) if a is None else a
-                x += ak * np.sin(k * phase + me.uniform(0, 6.28)) * (1 + 0.03 * k * smooth_noise(n, 10 + 3 * k, me)) / len(reeds)
+                x += pg * pl_env * ak * np.sin(k * phase + me.uniform(0, 6.28)) * (1 + 0.03 * k * smooth_noise(n, 10 + 3 * k, me)) / len(players)
         x = x / (np.abs(x).max() + 1e-9) * amp
         na, nlo, nhi, burst = R["noise"]
         if na > 0:
@@ -128,7 +159,7 @@ def note(name, midi):
         x /= np.abs(x).max() + 1e-9
         for lo, hi_hz, g in R["body"]:
             x = x + g * bandpass(x, lo, hi_hz)
-        b, a = butter(2, max(f0 * 0.55, 35) / (RATE / 2), btype="high")
+        b, a = butter(2, max(f0 * (0.3 if R.get("octave_below") else 0.55), 35) / (RATE / 2), btype="high")   # (a section keeps its trombone)
         x = lfilter(b, a, x)
     # the Mellotron tape
     x = np.tanh(1.5 * x / (np.abs(x).max() + 1e-9)) / np.tanh(1.5)
