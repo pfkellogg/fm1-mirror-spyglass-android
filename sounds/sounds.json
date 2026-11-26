@@ -40,12 +40,20 @@
    "bytes": 9495904,
    "sha256": "41dd8824205cfa4e17f460ab19d4ed43cc3ed6035d0e337ce098402ec5856366",
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-4/mellotron-flugelhorn.zip"
+  },
+  {
+   "id": "trumpet",
+   "name": "Trumpet",
+   "version": 1,
+   "bytes": 10543837,
+   "sha256": "d68fc46ed4143df140af5d26440afea26b76477647dc5f9a33c94d11f84f22ce",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-4/mellotron-trumpet.zip"
   }
  ],
  "all": {
   "name": "Everything",
-  "bytes": 79820963,
-  "sha256": "13966121cdcf05df278db5f3b9b1a670cab332fa832043d2ec0ca4a0b4426bb5",
+  "bytes": 90365436,
+  "sha256": "632f8b968a713ffc6519b6c1f81fa22b6d6925c068cfd0afc104584394e3d200",
   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-4/fm1-big-screen-sounds.zip"
  },
  "rich": {
