@@ -92,6 +92,18 @@ public class MainActivity extends Activity {
     private volatile int linkGen;
     /** Playing on behind another app: no screen asked for (the FM-1 stops sending 3 s after the last hello). */
     private volatile boolean behind;
+    /** Other FM-1s plugged in at the same time (Extra), each linked and shown; the app's own link is the one picked. */
+    private final java.util.List<Extra> extras = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** The FM-1 picked on its tab: the link opens it first. */
+    private volatile int preferId = -1;
+    /** Every FM-1's screen at once; and the lock (Big Knobs and Key Lights work every FM-1 at once). */
+    private volatile boolean sideBySide, locked;
+    private LinearLayout unitsRow;
+    private String unitsShown = "";
+    private float touchX, touchY;
+    /** Side by side: each screen's place and whose it is (null: the one picked), for a tap to pick it. */
+    private final java.util.List<android.graphics.RectF> cells = new java.util.ArrayList<>();
+    private final java.util.List<Extra> cellOwners = new java.util.ArrayList<>();
     private boolean drawnLinked;
     private volatile Installer installer;
     private volatile boolean keysChanged;
@@ -257,6 +269,16 @@ public class MainActivity extends Activity {
         bar2.setPadding(dp(12), 0, dp(12), dp(8));
         bar2.setVisibility(View.GONE);
         root.addView(bar2);
+        sideBySide = prefs.getBoolean("sideBySide", false);
+        locked = prefs.getBoolean("locked", false);
+        unitsRow = new LinearLayout(this);               // several FM-1s: a tab each, Side by side, the lock
+        unitsRow.setOrientation(LinearLayout.HORIZONTAL);
+        unitsRow.setGravity(Gravity.CENTER_VERTICAL);
+        unitsRow.setPadding(dp(12), 0, dp(12), dp(4));
+        unitsRow.setVisibility(View.GONE);
+        android.widget.HorizontalScrollView unitsScroll = new android.widget.HorizontalScrollView(this);
+        unitsScroll.addView(unitsRow);
+        root.addView(unitsScroll);
         boolean after = false;                     // the buttons after the lights may go to the second row
         for (int i = 0; i < bar.getChildCount(); i++) {
             View c = bar.getChildAt(i);
@@ -267,7 +289,23 @@ public class MainActivity extends Activity {
 
         stage = new FrameLayout(this);
         screen = new ScreenView(this);
-        screen.setOnClickListener(v -> setFull(!full));
+        screen.setOnTouchListener((v, e) -> {
+            touchX = e.getX();
+            touchY = e.getY();
+            return false;
+        });
+        screen.setOnClickListener(v -> {
+            if (sideBySideNow()) {
+                for (int i = 0; i < cells.size(); i++)
+                    if (cells.get(i).contains(touchX, touchY)) {
+                        Extra e = cellOwners.get(i);
+                        if (e != null) pick(e);
+                        return;
+                    }
+                return;
+            }
+            setFull(!full);
+        });
         stage.addView(screen, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         // Always a way back on the hidden mirror's black screen.
         showMirror = button("Show mirror", v -> setMirror(true));
@@ -334,6 +372,7 @@ public class MainActivity extends Activity {
                 public void onDeviceRemoved(MidiDeviceInfo info) {
                     Fm1Port l = link;
                     if (l != null && l.info != null && l.info.getId() == info.getId()) lost = true;
+                    for (Extra e : extras) if (e.info.getId() == info.getId()) e.lost = true;
                     MidiDevice b = ble;
                     if (b != null && b.getInfo().getId() == info.getId()) dropBle();
                 }
@@ -459,7 +498,7 @@ public class MainActivity extends Activity {
 
     /** On a thread of its own: opening waits for Android, and the FM-1 stops sending 3 s after the last hello. */
     private void keepLinked(int gen) {
-        long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0, baseAt = 0;
+        long lookedAt = 0, helloAt = 0, keysLookedAt = 0, otherAt = 0, baseAt = 0, extrasAt = 0;
         boolean askedIdentity = false, askedBuild = false, askedInfo = false, baseFirst = true;
         // Big Screen version 2 first (whole frames, less to send); version 1 if the firmware doesn't answer.
         BigScreen2.Asker asker = new BigScreen2.Asker();
@@ -519,6 +558,14 @@ public class MainActivity extends Activity {
             if (l == null && !installing() && now - lookedAt >= 2000) {
                 lookedAt = now;
                 l = openFm1();
+                if (l == null && !extras.isEmpty()) {
+                    // the one picked went and the others are all extras: the first of them becomes the one picked
+                    Extra e = extras.remove(0);
+                    preferId = e.info.getId();
+                    e.close();
+                    lookedAt = now - 1500;
+                    main.post(this::showUnits);
+                }
                 if (l != null) {
                     synchronized (this) {
                         lastScreen = 0;
@@ -597,6 +644,11 @@ public class MainActivity extends Activity {
                     lost = true;
                 }
             }
+            // Every other FM-1 plugged in: linked and listening (every 2 s)
+            if (mm != null && now - extrasAt >= 2000) {
+                extrasAt = now;
+                keepExtras(l);
+            }
             // The pairs (Inputs) hear about the FM-1 coming and going: "FM-1" under TO plays it through this link.
             if (l != told) {
                 told = l;
@@ -627,6 +679,9 @@ public class MainActivity extends Activity {
         UsbMidi uk = usbKeys;
         usbKeys = null;
         if (uk != null) uk.close();
+        for (Extra e : extras) e.close();
+        extras.clear();
+        main.post(this::showUnits);
         Fm1Port l = link;
         link = null;
         if (l != null) {
@@ -639,6 +694,132 @@ public class MainActivity extends Activity {
             l.close();
         }
         dropBle();
+    }
+
+    // ---- several FM-1s at once
+
+    private boolean heldByExtra(MidiDeviceInfo info) {
+        for (Extra e : extras) if (e.info.getId() == info.getId()) return true;
+        return false;
+    }
+
+    /** The other FM-1s on USB: each opened as an Extra (once the app's own link has its one); gone ones let go. */
+    private void keepExtras(Fm1Port l) {
+        boolean changed = false;
+        for (Extra e : extras)
+            if (e.lost) {
+                extras.remove(e);
+                e.close();
+                changed = true;
+            }
+        if (l != null && l.info != null && !installing()) {
+            for (MidiDeviceInfo i : Fm1Port.candidates(mm, false)) {
+                if (Ble.isBluetooth(i) || i.getId() == l.info.getId() || heldByExtra(i)) continue;
+                Extra e = Extra.open(mm, i, () -> { if (sideBySide) screen.postInvalidateOnAnimation(); }, () -> behind);
+                if (e != null) {
+                    extras.add(e);
+                    changed = true;
+                }
+            }
+        }
+        // the tabs again when an FM-1 came or went, or said what it runs
+        StringBuilder sig = new StringBuilder(String.valueOf(l == null ? "" : l.name)).append(firmware).append(identity);
+        for (Extra e : extras) sig.append('|').append(e.info.getId()).append(e.firmware).append(e.identity);
+        if (changed || !sig.toString().equals(unitsShown)) {
+            unitsShown = sig.toString();
+            main.post(this::showUnits);
+        }
+    }
+
+    /** Works with this FM-1 from now on (its tab, or its screen side by side): the app's own link moves over to it. */
+    private void pick(Extra e) {
+        if (!extras.remove(e)) return;
+        preferId = e.info.getId();
+        Keys.silence(link);                          // no note left hanging on the one let go
+        new Thread(() -> {
+            e.close();
+            lost = true;                             // the link thread opens the one picked (the other becomes an extra)
+            rescan = true;
+        }, "FM-1 pick").start();
+        showUnits();
+    }
+
+    private boolean sideBySideNow() {
+        return sideBySide && !extras.isEmpty() && mirrorOn;
+    }
+
+    /** A tab's name: "FM-1 2 · SHRUB". */
+    private static String unitName(int n, String firmware, String identity) {
+        String w = firmware != null ? firmware : identity;
+        if (w != null) {
+            String[] parts = w.trim().split("\\s+");
+            w = parts.length > 1 ? parts[0] + " " + parts[1] : parts[0];
+        }
+        return w == null || w.isEmpty() ? "FM-1 " + n : "FM-1 " + n + " \u00B7 " + w;
+    }
+
+    /** The row of tabs (only with two or more FM-1s): the one picked yellow; Side by side; the lock. */
+    private void showUnits() {
+        unitsRow.removeAllViews();
+        if (extras.isEmpty()) {
+            unitsRow.setVisibility(View.GONE);
+            screen.invalidate();
+            return;
+        }
+        unitsRow.setVisibility(View.VISIBLE);
+        java.util.List<Extra> order = new java.util.ArrayList<>(extras);
+        order.sort((a, b) -> Integer.compare(a.info.getId(), b.info.getId()));
+        Fm1Port l = link;
+        int mine = l != null && l.info != null ? l.info.getId() : -1;
+        int n = 1;
+        boolean placed = false;
+        for (int k = 0; k <= order.size(); k++) {
+            Extra e = k < order.size() ? order.get(k) : null;
+            if (!placed && (e == null || e.info.getId() > mine)) {
+                placed = true;
+                String f, id;
+                synchronized (this) {
+                    f = firmware;
+                    id = identity;
+                }
+                unitsRow.addView(unitTab(unitName(n++, f, id), true, null));
+            }
+            if (e != null) unitsRow.addView(unitTab(unitName(n++, e.firmware, e.identity), false, e));
+        }
+        Button sbs = button(sideBySide ? "Side by side: on" : "Side by side", v -> {
+            sideBySide = !sideBySide;
+            prefs.edit().putBoolean("sideBySide", sideBySide).apply();
+            for (Extra x : extras) x.changed = true;
+            showUnits();
+        });
+        unitsRow.addView(sbs);
+        Button lock = button(locked ? "LOCKED: knobs move all" : "Unlocked: one FM-1", v -> {
+            locked = !locked;
+            prefs.edit().putBoolean("locked", locked).apply();
+            showUnits();
+        });
+        if (locked) lock.setBackground(flat(0xffff9628));
+        else greyOut(lock);
+        unitsRow.addView(lock);
+        screen.invalidate();
+    }
+
+    private Button unitTab(String name, boolean picked, Extra e) {
+        Button b = button(name, v -> { if (e != null) pick(e); });
+        if (!picked) greyOut(b);
+        return b;
+    }
+
+    private void greyOut(Button b) {
+        b.setBackground(flat(0xff3a3a3a));
+        b.setTextColor(Color.WHITE);
+    }
+
+    private android.graphics.drawable.GradientDrawable flat(int color) {
+        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
+        d.setColor(color);
+        d.setCornerRadius(dp(14));
+        return d;
     }
 
     private void dropBle() {
@@ -685,9 +866,10 @@ public class MainActivity extends Activity {
     private Fm1Port openFm1() {
         if (mm == null) return openUsbFm1();
         List<MidiDeviceInfo> all = Fm1Port.candidates(mm, true);
-        all.sort((a, b) -> Integer.compare(rank(a), rank(b)));
+        all.sort((a, b) -> Integer.compare(a.getId() == preferId ? -1 : rank(a), b.getId() == preferId ? -1 : rank(b)));
         for (MidiDeviceInfo info : all) {
             if (bleOff && Ble.isBluetooth(info)) continue;
+            if (heldByExtra(info)) continue;
             Fm1Port p = Fm1Port.open(mm, info, this::onMessage, played.fm1);
             if (p != null) return p;
         }
@@ -1528,6 +1710,10 @@ public class MainActivity extends Activity {
             android.widget.Toast.makeText(this, "Installing firmware needs a tablet, phone or computer with USB MIDI.", android.widget.Toast.LENGTH_LONG).show();
             return;
         }
+        if (!extras.isEmpty()) {
+            android.widget.Toast.makeText(this, "To install firmware, leave just that one FM-1 plugged in: with several, it could go to the wrong one.", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
         Installer ins = new Installer(mm, pkg, new String(id));
         installer = ins; // the link thread lets go of the FM-1: the installer has it to itself
         shown = "";
@@ -1931,6 +2117,8 @@ public class MainActivity extends Activity {
         } catch (IOException e) {
             lost = true;
         }
+        if (locked)
+            for (Extra x : extras) x.sendPanel(m); // locked: every FM-1's knob turns too
     }
 
     private void toggleSmooth() {
@@ -2352,6 +2540,10 @@ public class MainActivity extends Activity {
                 canvas.drawText("No FM-1 yet: plug it into this tablet", getWidth() / 2f, getHeight() / 2f, hint);
                 return;
             }
+            if (sideBySideNow()) {
+                drawSideBySide(canvas);
+                return;
+            }
             int side = Math.min(getWidth(), getHeight());
             // A whole number of screen pixels per FM-1 pixel (3x, 4x, ...): with 3.2x some came out 3 wide and some 4,
             // and dotted pictures (Erik37's piano) looked streaky. Smooth on keeps the same size, so nothing jumps.
@@ -2364,6 +2556,71 @@ public class MainActivity extends Activity {
             boolean sm = smoothOn && smoothReady;
             paint.setFilterBitmap(sm);
             canvas.drawBitmap(sm ? smooth : bitmap, sm ? smoothSrc : src, dst, paint);
+        }
+
+        /** Every FM-1's screen at once, in as many columns as make them biggest; the one picked framed in yellow. */
+        private void drawSideBySide(Canvas canvas) {
+            java.util.List<Extra> order = new java.util.ArrayList<>(extras);
+            order.sort((a, b) -> Integer.compare(a.info.getId(), b.info.getId()));
+            Fm1Port l = link;
+            int mine = l != null && l.info != null ? l.info.getId() : -1;
+            java.util.List<Extra> all = new java.util.ArrayList<>();   // (null: the one picked)
+            boolean placed = false;
+            for (Extra e : order) {
+                if (!placed && e.info.getId() > mine) {
+                    all.add(null);
+                    placed = true;
+                }
+                all.add(e);
+            }
+            if (!placed) all.add(null);
+            int n = all.size();
+            float w = getWidth(), h = getHeight(), label = dp(30);
+            int cols = 1;
+            float best = 0;
+            for (int c = 1; c <= n; c++) {
+                int rows = (n + c - 1) / c;
+                float side = Math.min(w / c, (h - label * rows) / rows);
+                if (side > best) {
+                    best = side;
+                    cols = c;
+                }
+            }
+            int rows = (n + cols - 1) / cols;
+            float cw = w / cols, ch = h / rows;
+            cells.clear();
+            cellOwners.clear();
+            hint.setTextSize(dp(18));
+            hint.setTextAlign(Paint.Align.CENTER);
+            hint.setAntiAlias(true);
+            paint.setFilterBitmap(true);
+            Paint frame = new Paint();
+            frame.setStyle(Paint.Style.STROKE);
+            frame.setStrokeWidth(dp(4));
+            frame.setColor(0xffffd21f);
+            String f, id;
+            synchronized (MainActivity.this) {
+                f = firmware;
+                id = identity;
+            }
+            for (int k = 0; k < n; k++) {
+                Extra e = all.get(k);
+                float x0 = (k % cols) * cw, y0 = (k / cols) * ch;
+                float side = Math.min(cw - dp(12), ch - label - dp(12));
+                float sx = x0 + (cw - side) / 2, sy = y0 + label + (ch - label - side) / 2;
+                android.graphics.RectF r = new android.graphics.RectF(sx, sy, sx + side, sy + side);
+                hint.setColor(e == null ? 0xffffd21f : 0xffc8c8c8);
+                canvas.drawText(e == null ? unitName(k + 1, f, id) : unitName(k + 1, e.firmware, e.identity), sx + side / 2, sy - dp(8), hint);
+                if (e == null) {
+                    canvas.drawBitmap(bitmap, src, r, paint);
+                    canvas.drawRect(r.left - dp(4), r.top - dp(4), r.right + dp(4), r.bottom + dp(4), frame);
+                } else {
+                    e.paint(look);
+                    canvas.drawBitmap(e.bitmap, src, r, paint);
+                }
+                cells.add(new android.graphics.RectF(x0, y0, x0 + cw, y0 + ch));
+                cellOwners.add(e);
+            }
         }
     }
 }

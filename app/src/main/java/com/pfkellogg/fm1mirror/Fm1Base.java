@@ -29,6 +29,13 @@ final class Fm1Base {
         return Codec.frame(REQUEST, new byte[] {(byte) what});
     }
 
+    /** As apply, for another FM-1 than the one picked: its input reports (lights) aren't taken. */
+    static int applyScreen(int[] pixels, byte[] m) {
+        byte[][] f = parse(m);
+        if (f != null && (f[0][0] & 255) == INPUT) return NOTHING;
+        return apply(pixels, m);
+    }
+
     /** One message from the FM-1, into pixels (RGB565, row by row): NOTHING, HELLO or PAINTED. */
     static int apply(int[] pixels, byte[] m) {
         byte[][] f = parse(m);
