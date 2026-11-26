@@ -40,9 +40,9 @@ def note(midi):
     scoop_c = -(55 + 35 * me.random()) * np.exp(-t / (0.07 + 0.05 * me.random()))
     scoop_c += 6 * np.exp(-((t - 0.22) / 0.08) ** 2)
     # yuri: late, slow and deep; its rate wanders like a player's
-    yrate = (4.4 + 1.0 * me.random()) * (1 + 0.08 * smooth_noise(n, 0.6, me))
+    yrate = (3.3 + 0.7 * me.random()) * (1 + 0.08 * smooth_noise(n, 0.6, me))      # v2: Ample's ~3.6 Hz
     yph = 2 * np.pi * np.cumsum(yrate) / RATE + me.uniform(0, 6.28)
-    ydepth = (16 + 14 * hi) * (1 + 0.2 * me.normal()) * np.clip((t - 0.7 - 0.5 * me.random()) / 1.2, 0, 1)
+    ydepth = (27 - 22 * hi) * (1 - 0.25 * hi) * (1 + 0.2 * me.normal()) * np.clip((t - 0.7 - 0.5 * me.random()) / 1.2, 0, 1)   # v2: ~19 c middle, ~7 c high
     yuri_c = ydepth * np.sin(yph)
     # breath pressure drifts: tiny pitch drift too (a shakuhachi's pitch follows the breath)
     drift_c = 4 * smooth_noise(n, 0.8, me)
@@ -60,17 +60,15 @@ def note(midi):
     level = bloom * swell * pulse * (1 + 0.05 * smooth_noise(n, 3.0, me))
     # the tone: harmonics, each breathing on its own (rough), fewer and softer up high; the low end buzzes (sawari)
     tone = np.zeros(n)
-    nh = 14
-    for k in range(1, nh + 1):
+    # v2: each harmonic's level set to Ample Shakuhachi's measured ones (dB under the fundamental, median of its
+    # held notes: a pure, round tone), low/middle notes and high notes; between them by pitch
+    LOW = [0, -16.3, -16.6, -20.9, -30.0, -32.5, -32.5, -30.2, -33, -36, -38, -40]
+    HIGH = [0, -17.8, -20.1, -26.6, -25.8, -30.1, -30.0, -30.9, -34, -37, -40, -42]
+    for k in range(1, 13):
         if k * f0 > 12000:
             break
-        a = (1.0 / k ** (1.05 + 0.55 * hi))                       # brighter low down, purer up high
-        if k == 2:
-            a *= 0.55 + 0.25 * (1 - hi)                            # the open-ended bore: a softer octave
-        if k == 3:
-            a *= 0.9
-        a *= 1 + 0.6 * (1 - hi) * (k >= 4) * (k <= 9)             # sawari: a buzzing band low down
-        rough = 1 + (0.25 + 0.03 * k) * smooth_noise(n, 25 + 6 * k, me)   # each harmonic flickers with the breath
+        a = 10 ** ((LOW[k - 1] + (HIGH[k - 1] - LOW[k - 1]) * hi) / 20)
+        rough = 1 + (0.22 + 0.03 * k) * smooth_noise(n, 25 + 6 * k, me)   # each harmonic flickers with the breath
         delay = np.clip((t - 0.012 * k * (1 - hi)) / 0.08, 0, 1)   # upper harmonics come in a touch later
         tone += a * rough * delay * np.sin(k * phase + me.uniform(0, 6.28))
     tone /= np.abs(tone).max() + 1e-9
@@ -80,7 +78,7 @@ def note(midi):
     pitched_air /= np.abs(pitched_air).max() + 1e-9
     hiss = bandpass(me.standard_normal(n), 1200, 7000)
     hiss /= np.abs(hiss).max() + 1e-9
-    air_amt = (0.34 + 0.12 * (1 - hi)) * (1 + 0.15 * me.normal())
+    air_amt = (0.27 + 0.08 * (1 - hi)) * (1 + 0.15 * me.normal())   # v2: ~-26 dB between the harmonics, as Ample
     # muraiki: the burst of breath at the start, rough and loud, gone in a quarter second
     burst = bandpass(me.standard_normal(n), 500, 6000)
     burst /= np.abs(burst).max() + 1e-9
@@ -89,7 +87,7 @@ def note(midi):
     x = tone * level + air_amt * (0.7 * pitched_air + 0.45 * hiss) * air_level + 0.55 * burst * burst_env
     x /= np.abs(x).max() + 1e-9
     # the bamboo: hollow resonances (a soft body around 700 Hz and an edge around 2.5 kHz), no boom
-    x = x + 0.35 * bandpass(x, 550, 950) + 0.22 * bandpass(x, 2000, 3200)
+    x = x + 0.30 * bandpass(x, 550, 950) + 0.08 * bandpass(x, 2000, 3200)   # v2: less edge (it measured too bright)
     b, a = butter(2, max(f0 * 0.55, 40) / (RATE / 2), btype="high")
     x = lfilter(b, a, x)
     # the Mellotron tape: a little saturation, the top rolling off
