@@ -24,6 +24,14 @@
    "bytes": 9365591,
    "sha256": "ffdb65844c5a948de612564412f891114abb8b78496ba277a941930f0a633435",
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-1/mellotron-choir.zip"
+  },
+  {
+   "id": "shakuhachi",
+   "name": "Shakuhachi",
+   "version": 1,
+   "bytes": 13179524,
+   "sha256": "9daf87ec9255789008b54f8f15d7ac8cc5683823e5396d92be302c80d4f63c74",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-3/mellotron-shakuhachi.zip"
   }
  ]
 }
