@@ -3,7 +3,7 @@
 # Each cymbal rings in inharmonic modes (1, 1.56, 2.31, 2.94 ... times the lowest), each mode a close pair; the two
 # cymbals are a few tenths of a percent apart, so the ring wobbles slowly ("wah-wah"), the tingsha's sound. A bright
 # clash at the start, the highs dying first. D4 rings at 2050 Hz (the usual tingsha), the other keys move from there.
-# A light Mellotron tape (wow, flutter, a soft fade as the strip runs out at 8 s).
+# A light Mellotron tape (wow, flutter, dying away before the strip runs out at 8 s).
 #   python tools/make_mellotron_tibetanbells.py
 # Written as 16-bit mono WAV at 44100 Hz to samples/tibetanbells/043.wav ... 077.wav.
 import os, numpy as np, soundfile as sf
@@ -28,7 +28,7 @@ def strip(midi):
                 if f > 19000:
                     continue
                 amp = (0.78 ** k) * (1.0 if d == 0 else 0.7) * (1.0 if cym == 0 else 0.85)
-                tau = 10.0 / (1 + 0.6 * k) ** 1.4 * (2050 / f0) ** 0.3   # bigger bells ring longer
+                tau = 3.6 / (1 + 0.6 * k) ** 1.4 * (2050 / f0) ** 0.3   # bigger bells ring longer
                 y += amp * np.exp(-t / tau) * np.sin(2 * np.pi * f * warp + r.uniform(0, 6.28))
     for _ in range(30):                                            # the clash's shimmer
         f = r.uniform(max(6000, 3 * f0), 16000)
@@ -37,8 +37,8 @@ def strip(midi):
     clash = r.standard_normal(c) * np.exp(-np.arange(c) / (0.0012 * RATE))
     y[:c] += 0.9 * np.convolve(clash, [1, -1], "same")
     y *= np.minimum(1, t / 0.0005)
-    fade = int(0.4 * RATE)
-    y[-fade:] *= np.linspace(1, 0, fade) ** 2
+    # the strip runs out at 8 s: the ring must be gone by then, so it dies away over the last 3.5 s (no cut)
+    y *= np.where(t < 4.5, 1.0, 0.5 + 0.5 * np.cos(np.pi * np.clip((t - 4.5) / 3.5, 0, 1)))
     return y
 
 if __name__ == "__main__":

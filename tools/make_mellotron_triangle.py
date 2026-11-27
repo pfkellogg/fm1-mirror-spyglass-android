@@ -4,7 +4,7 @@
 # each split by the bends into two close partials that beat; the highs die quickly, the lowest rings on. On top, a
 # shimmer of dense high partials and the beater's tick. Keys are pitched two octaves up (D4 rings at D6, 1175 Hz), so
 # low keys sound like a bigger, darker triangle and high keys a small bright one. A light Mellotron tape (wow, flutter,
-# a soft fade as the strip runs out at 8 s); the top is left open, since a triangle is all sparkle.
+# dying away before the strip runs out at 8 s); the top is left open, since a triangle is all sparkle.
 #   python tools/make_mellotron_triangle.py
 # Written as 16-bit mono WAV at 44100 Hz to samples/triangle/043.wav ... 077.wav.
 import os, numpy as np, soundfile as sf
@@ -28,7 +28,7 @@ def strip(midi):
             if f > 19000:
                 continue
             amp = (0.9 ** k) * (1.0 if d == 0 else 0.6) * (1.0 if k < 6 else 0.5)
-            tau = 9.0 / (1 + 0.35 * k) ** 1.3 * (1175 / f0) ** 0.3  # big triangles ring longer
+            tau = 3.4 / (1 + 0.35 * k) ** 1.3 * (1175 / f0) ** 0.3  # big triangles ring longer
             y += amp * np.exp(-t / tau) * np.sin(2 * np.pi * f * warp + r.uniform(0, 6.28))
     for _ in range(40):                                            # the shimmer
         f = r.uniform(max(3000, 2.5 * f0), 15000)
@@ -37,8 +37,8 @@ def strip(midi):
     tick = r.standard_normal(c) * np.exp(-np.arange(c) / (0.0008 * RATE))
     y[:c] += 0.6 * np.convolve(tick, [1, -1], "same")
     y *= np.minimum(1, t / 0.0007)
-    fade = int(0.4 * RATE)
-    y[-fade:] *= np.linspace(1, 0, fade) ** 2
+    # the strip runs out at 8 s: the ring must be gone by then, so it dies away over the last 3.5 s (no cut)
+    y *= np.where(t < 4.5, 1.0, 0.5 + 0.5 * np.cos(np.pi * np.clip((t - 4.5) / 3.5, 0, 1)))
     return y
 
 if __name__ == "__main__":

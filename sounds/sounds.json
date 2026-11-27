@@ -132,17 +132,17 @@
   {
    "id": "triangle",
    "name": "Triangle",
-   "version": 1,
-   "bytes": 16666797,
-   "sha256": "e7db4c58bea1d6bef41ab1b4014119ebf87e690ef9d6a36594679c66f065c10e",
+   "version": 2,
+   "bytes": 13570166,
+   "sha256": "f18c11289ae0fbdb19b84d752e004a61f819441533fc5ddfa4f4922f95a31f31",
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-triangle.zip"
   },
   {
    "id": "tibetanbells",
    "name": "Tibetan Bells",
-   "version": 1,
-   "bytes": 12907923,
-   "sha256": "4c2bd40feff85ae2b5cc591af2de7f15276809de650fe11419d40d1950b77a40",
+   "version": 2,
+   "bytes": 8458866,
+   "sha256": "f6fe5c09c1c8f54c72c06f13f1abe9bf1987b1a1fd843002d20fc58038cb7ba7",
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-tibetanbells.zip"
   },
   {
@@ -157,8 +157,8 @@
  ],
  "all": {
   "name": "Everything",
-  "bytes": 231050578,
-  "sha256": "6cfed9e80663410849aca7dc93b4cae4a72084ba135483e054be1471ac245c20",
+  "bytes": 223504890,
+  "sha256": "54f1b557088bbf16147d1e3031a06e9bb77a6c16824e15d5cfae27bb122d3c2a",
   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/fm1-big-screen-sounds.zip"
  },
  "rich": {
