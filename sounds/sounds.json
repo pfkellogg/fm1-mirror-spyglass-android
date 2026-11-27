@@ -1,5 +1,5 @@
 {
- "about": "FM-1 Big Screen's sounds (Android, Mac, Windows, Linux): 19 Mellotron-style sounds and a Grand Piano (from the Salamander Grand Piano by Alexander Holm, CC-BY 3.0), 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music; 'all' is everything in one download (and Rich = GeneralUser GS); 'rich' our copy of GeneralUser GS. Add a sound: zip its strips, put the zip on a release, add it here.",
+ "about": "FM-1 Big Screen's sounds (Android, Mac, Windows, Linux): 24 Mellotron-style sounds and a Grand Piano (from the Salamander Grand Piano by Alexander Holm, CC-BY 3.0), 35 strips each, G2-F5 (043.flac-077.flac), made from scratch by tools/make_mellotron_*.py, free to use in your own music; 'all' is everything in one download (and Rich = GeneralUser GS); 'rich' our copy of GeneralUser GS. Add a sound: zip its strips, put the zip on a release, add it here.",
  "sounds": [
   {
    "id": "flute",
@@ -154,6 +154,46 @@
    "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-trianglebells.zip"
   },
   {
+   "id": "fmepiano",
+   "name": "FM Electric Piano",
+   "version": 1,
+   "bytes": 3287937,
+   "sha256": "98e09990fa17b6e168cbf66d6c59c8dc659433aecb39710737e6e5afb131021f",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-fmepiano.zip"
+  },
+  {
+   "id": "fmtubular",
+   "name": "FM Tubular Bells",
+   "version": 1,
+   "bytes": 5807745,
+   "sha256": "8caf3da3da4e3432f91e13debf38c8c5ef559bf4aa1a1f9e15a53e108824d842",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-fmtubular.zip"
+  },
+  {
+   "id": "glasschoir",
+   "name": "Glass Choir",
+   "version": 1,
+   "bytes": 11470419,
+   "sha256": "33e3bfd9f9acbe526bc9eeb4100911f1769fce94f09e8f663ec656f57cdc8fec",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-glasschoir.zip"
+  },
+  {
+   "id": "crystalstrings",
+   "name": "Crystal Strings",
+   "version": 1,
+   "bytes": 10639119,
+   "sha256": "52840da3ebd4d6dbedffb20edba7bf7646f0db9afbdcfc259d6b7236091aab32",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-crystalstrings.zip"
+  },
+  {
+   "id": "glassharmonica",
+   "name": "Glass Harmonica",
+   "version": 1,
+   "bytes": 10177062,
+   "sha256": "6f0d43228537424ab0a336d9b71d08039bc8224458ac912b3d8fa5f24ff96dbb",
+   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/mellotron-glassharmonica.zip"
+  },
+  {
    "id": "piano",
    "name": "Grand Piano",
    "version": 1,
@@ -165,8 +205,8 @@
  ],
  "all": {
   "name": "Everything",
-  "bytes": 236116781,
-  "sha256": "ff523b92f6dba659210e5dda70040fc34d05cfc9313f97a06f25a9328031a50a",
+  "bytes": 277503713,
+  "sha256": "d342b879ddc762fa5191b09abc5088a7dcfd8aeb05f035db8a30332fd73de055",
   "url": "https://github.com/pfkellogg/fm1-mirror-spyglass-android/releases/download/sounds-5/fm1-big-screen-sounds.zip"
  },
  "rich": {
