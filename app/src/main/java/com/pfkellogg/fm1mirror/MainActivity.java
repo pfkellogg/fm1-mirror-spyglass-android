@@ -98,6 +98,17 @@ public class MainActivity extends Activity {
     private volatile int preferId = -1;
     /** Every FM-1's screen at once; and the lock (Big Knobs and Key Lights work every FM-1 at once). */
     private volatile boolean sideBySide, locked;
+    // A Contour ShuttleXpress / ShuttlePRO as a knob remote (Shuttle.java; the desktop app's shuttle.rs): the knob it
+    // turns (0..7, NAMES), the ring's position, its buttons' press times, speech, the big label
+    private Shuttle shuttle;
+    private int shKnob = 2, shRing = 0, shMaster = 512, shTurned = 0, shTurnedKnob = -1;
+    private long shTurnedAt = 0;
+    private final long[] shDown = new long[6];
+    private final boolean[] shHeld = new boolean[6];
+    private boolean shSpeak = true;
+    private android.speech.tts.TextToSpeech tts;
+    private TextView shLabel;
+    private static final String[] SH_NAMES = {"SELECT", "ALGORITHM", "KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4", "PRESETS", "MASTER"};
     private LinearLayout unitsRow;
     private String unitsShown = "";
     private float touchX, touchY;
@@ -153,6 +164,7 @@ public class MainActivity extends Activity {
         mm = (MidiManager) getSystemService(Context.MIDI_SERVICE); // (null where Android has no MIDI service)
         um = (android.hardware.usb.UsbManager) getSystemService(Context.USB_SERVICE);
         prefs = getSharedPreferences("mirror", MODE_PRIVATE);
+        shSpeak = prefs.getBoolean("shuttleSpeak", true);
         try {
             look = Codec.Look.valueOf(prefs.getString("look", "COLOR"));
         } catch (IllegalArgumentException ignored) {
@@ -351,6 +363,7 @@ public class MainActivity extends Activity {
         if (tv)
             root.setPadding(dp(24), dp(12), dp(24), dp(40));
         setContentView(root);
+        startShuttle();                               // a Contour ShuttleXpress on USB, if there is one (Shuttle.java)
         wakeBar();
         if (prefs.getBoolean("glass", false)) setGlass(true);
         // Android 13+: ask once to show "FM-1 Big Screen is on" (and its Quit) while it plays on in the background.
@@ -471,6 +484,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (shuttle != null) shuttle.close();
+        if (tts != null) tts.shutdown();
         main.removeCallbacks(sleepBar);
         letGo();
         Background.stop(this);
@@ -2100,6 +2115,232 @@ public class MainActivity extends Activity {
         lp.height = panelView.wanted();
         panelView.setLayoutParams(lp);
         panelView.invalidate();
+    }
+
+
+    // ---- the Contour Shuttle (Shuttle.java): turn the FM-1's knobs with a dial; everything shown big and said out loud ----
+
+    private void startShuttle() {
+        if (um == null || shuttle != null) return;
+        shuttle = new Shuttle(this, um, new Shuttle.Listener() {
+            @Override
+            public void dial(int n) {
+                shTurn(n);
+            }
+
+            @Override
+            public void ring(int pos) {
+                shRing = pos;
+                main.removeCallbacks(shRingTick);
+                if (pos != 0) main.post(shRingTick);
+            }
+
+            @Override
+            public void button(int n, boolean down) {
+                shButton(n, down);
+            }
+
+            @Override
+            public void connected(boolean on) {
+                if (on) shSay("Shuttle: " + SH_NAMES[shKnob], "Shuttle connected. " + spoken(SH_NAMES[shKnob]) + ".");
+            }
+        });
+    }
+
+    /** The ring held out: turns the knob again and again, faster the further out (as shuttle.rs's ring_speed). */
+    private final Runnable shRingTick = new Runnable() {
+        @Override
+        public void run() {
+            if (shRing == 0) return;
+            int a = Math.min(7, Math.abs(shRing));
+            int[] every = {0, 320, 220, 150, 110, 80, 60, 45}, clicks = {0, 1, 1, 1, 1, 2, 3, 4};
+            shTurn(clicks[a] * Integer.signum(shRing));
+            main.postDelayed(this, every[a]);
+        }
+    };
+
+    private void shTurn(int clicks) {
+        if (clicks == 0) return;
+        if (shKnob == 7) {
+            shMaster = Math.max(0, Math.min(1023, shMaster + clicks * 16));
+            sendPanel(Panel.master(shMaster));
+        } else {
+            sendPanel(Panel.turn(shKnob, clicks));
+        }
+        long now = android.os.SystemClock.uptimeMillis();
+        shTurned = shTurnedKnob == shKnob && now - shTurnedAt < 1500 ? shTurned + clicks : clicks;
+        shTurnedKnob = shKnob;
+        shTurnedAt = now;
+        String all = locked && !extras.isEmpty() ? "  \u00B7  ALL" : "";
+        shShow(shKnob == 7 ? "MASTER " + Math.round(shMaster / 10.23) + "%" + all
+                : SH_NAMES[shKnob] + "  " + (shTurned > 0 ? "+" : "") + shTurned + all);
+    }
+
+    private void shButton(int n, boolean down) {
+        if (n == 3) {                                         // SEL, pressed for as long as the button is held
+            sendPanel(Panel.press(3, down));
+            if (down) shShow("SEL");
+            return;
+        }
+        if (down) {
+            shDown[n] = android.os.SystemClock.uptimeMillis();
+            shHeld[n] = false;
+            main.postDelayed(() -> {
+                if (shDown[n] > 0 && !shHeld[n] && android.os.SystemClock.uptimeMillis() - shDown[n] >= 590) {
+                    shHeld[n] = true;
+                    shHold(n);
+                }
+            }, 600);
+        } else {
+            boolean tap = shDown[n] > 0 && !shHeld[n] && android.os.SystemClock.uptimeMillis() - shDown[n] < 600;
+            shDown[n] = 0;
+            if (tap) shTap(n);
+        }
+    }
+
+    private void shTap(int n) {
+        switch (n) {
+            case 1:
+            case 2: {
+                shKnob = (shKnob + (n == 1 ? 7 : 1)) % 8;
+                String name = SH_NAMES[shKnob] + (shKnob == 7 ? " " + Math.round(shMaster / 10.23) + "%" : "");
+                shSay(name, spoken(name));
+                break;
+            }
+            case 4: {
+                if (extras.isEmpty()) {
+                    shSay("Only one FM-1", "Only one F M 1");
+                    break;
+                }
+                java.util.List<Extra> order = new java.util.ArrayList<>(extras);
+                order.sort((a, b) -> Integer.compare(a.info.getId(), b.info.getId()));
+                Fm1Port l = link;
+                int mine = l != null && l.info != null ? l.info.getId() : -1;
+                Extra next = order.get(0);
+                for (Extra e : order) if (e.info.getId() > mine) {
+                    next = e;
+                    break;
+                }
+                pick(next);
+                main.postDelayed(() -> {
+                    String[] st = shStatus();
+                    shSay(st[0], st[1]);
+                }, 900);                                      // once the link has moved over
+                break;
+            }
+            case 5: {
+                if (extras.isEmpty()) {
+                    shSay("Only one FM-1", "Only one F M 1: the lock is for several");
+                    break;
+                }
+                locked = !locked;
+                prefs.edit().putBoolean("locked", locked).apply();
+                showUnits();
+                if (locked) shSay("LOCKED: knobs move every FM-1", "Locked. Knobs move every F M 1.");
+                else shSay("Unlocked: only the picked FM-1", "Unlocked. Only this F M 1.");
+                break;
+            }
+        }
+    }
+
+    private void shHold(int n) {
+        if (n == 1) {
+            String[] st = shStatus();
+            shSay(st[0], st[1]);
+        } else if (n == 2) {
+            shSpeak = !shSpeak;
+            prefs.edit().putBoolean("shuttleSpeak", shSpeak).apply();
+            shShow(shSpeak ? "Speech on" : "Speech off");
+            speak(shSpeak ? "Speech on" : "Speech off");
+        } else if (n == 4) {
+            if (extras.isEmpty()) {
+                shSay("Only one FM-1", "Only one F M 1");
+                return;
+            }
+            sideBySide = !sideBySide;
+            prefs.edit().putBoolean("sideBySide", sideBySide).apply();
+            for (Extra x : extras) x.changed = true;
+            showUnits();
+            String t = sideBySide ? "Side by side" : "One at a time";
+            shSay(t, t);
+        }
+    }
+
+    /** Where I am: shown, and said ("F M 1, 2 of 5. Knob 1. Locked."). */
+    private String[] shStatus() {
+        int total = extras.size() + 1, at = 1;
+        Fm1Port l = link;
+        int mine = l != null && l.info != null ? l.info.getId() : -1;
+        for (Extra e : extras) if (e.info.getId() < mine) at++;
+        String f, id;
+        synchronized (this) {
+            f = firmware;
+            id = identity;
+        }
+        String name = unitName(at, f, id), of = total > 1 ? " of " + total : "", knob = SH_NAMES[shKnob];
+        String lock = total > 1 ? (locked ? ". Locked" : ". Unlocked") : "";
+        return new String[] {name + of + "  \u00B7  " + knob, spoken(name + of + ". " + knob + lock + ".")};
+    }
+
+    /** How a name sounds: "KNOB 1" -> "Knob 1", "FM-1" -> "F M 1". */
+    private static String spoken(String t) {
+        StringBuilder out = new StringBuilder();
+        for (String w : t.replace("FM-1", "F M 1").replace(" \u00B7 ", ", ").split(" ")) {
+            int letters = 0;
+            boolean upper = true;
+            for (char c : w.toCharArray()) {
+                if (Character.isLetter(c)) letters++;
+                if (Character.isLowerCase(c)) upper = false;
+            }
+            if (upper && letters > 2 && !w.equals("SLOOP")) w = w.charAt(0) + w.substring(1).toLowerCase();
+            out.append(w).append(' ');
+        }
+        return out.toString().trim();
+    }
+
+    private void shSay(String show, String say) {
+        shShow(show);
+        if (shSpeak) speak(say);
+    }
+
+    private void speak(String text) {
+        if (tts == null) {
+            tts = new android.speech.tts.TextToSpeech(this, st -> {
+                if (st == android.speech.tts.TextToSpeech.SUCCESS) tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "sh");
+            });
+            return;
+        }
+        tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "sh");
+    }
+
+    private final Runnable shHide = () -> {
+        if (shLabel != null) shLabel.setVisibility(View.GONE);
+    };
+
+    /** Big, yellow, at the top, for a moment. */
+    private void shShow(String text) {
+        if (shLabel == null) {
+            shLabel = new TextView(this);
+            shLabel.setTextColor(0xffffd60a);
+            shLabel.setTextSize(TypedValue.COMPLEX_UNIT_SP, 34);
+            shLabel.setTypeface(Typeface.DEFAULT_BOLD);
+            shLabel.setPadding(dp(22), dp(10), dp(22), dp(10));
+            android.graphics.drawable.GradientDrawable bg = new android.graphics.drawable.GradientDrawable();
+            bg.setColor(0xe6000000);
+            bg.setCornerRadius(dp(16));
+            bg.setStroke(dp(3), 0xffffd60a);
+            shLabel.setBackground(bg);
+            shLabel.setSingleLine(true);
+            FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            lp.topMargin = dp(36);
+            ((FrameLayout) findViewById(android.R.id.content)).addView(shLabel, lp);
+        }
+        shLabel.setText(text);
+        shLabel.setVisibility(View.VISIBLE);
+        shLabel.bringToFront();
+        main.removeCallbacks(shHide);
+        main.postDelayed(shHide, 1800);
     }
 
     /** A Big Knobs / remote press message to the FM-1: as it is to a Big Screen build, as Charles Vestal's remote to fm1-base. */
